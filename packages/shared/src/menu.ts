@@ -35,6 +35,12 @@ export interface VariantView {
   isActive: boolean;
   sortOrder: number;
   usedInOrders: boolean;
+  /** Kemasan per pack (plastik vacuum, box, saos, ...). */
+  packaging: { ingredientId: string; name: string; qty: number; unitCost: number }[];
+  /** HPP teoretis per pack (null bila produk belum punya resep). */
+  hppPerPack: number | null;
+  margin: number | null;
+  marginPct: number | null;
 }
 
 export interface ProductView {
@@ -47,6 +53,9 @@ export interface ProductView {
   isActive: boolean;
   isAvailable: boolean;
   sortOrder: number;
+  /** HPP teoretis per pcs dari resep (dibulatkan Rp10); null bila belum ada resep. */
+  costPerPcs: number | null;
+  recipeId: string | null;
   variants: VariantView[];
 }
 

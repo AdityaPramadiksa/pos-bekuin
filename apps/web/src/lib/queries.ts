@@ -1,5 +1,7 @@
 import type {
   CatalogResponse,
+  IngredientView,
+  RecipeView,
   IngredientStockView,
   OrderListResponse,
   OrderView,
@@ -118,3 +120,12 @@ export const useStockMovements = (params: Record<string, string | undefined>) =>
 
 export const useTables = () =>
   useQuery({ queryKey: ['tables'], queryFn: () => get<TableView[]>('/tables') });
+
+export const useIngredients = () =>
+  useQuery({
+    queryKey: ['ingredients'],
+    queryFn: () => get<IngredientView[]>('/ingredients?includeInactive=true'),
+  });
+
+export const useRecipes = () =>
+  useQuery({ queryKey: ['recipes'], queryFn: () => get<RecipeView[]>('/recipes') });

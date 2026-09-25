@@ -651,7 +651,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Tables | `GET/POST/PATCH /tables`, `POST /tables/:id/rotate-qr` (QR dibuat di browser) | Login (baca) / Admin | Meja & QR ✅ |
 | Menu | `GET/POST/PATCH /sales-categories` | Login (baca) / Admin | Kategori + tampil ke pelanggan ✅ |
 | Menu | `GET/POST/PATCH/DELETE /products`, `PATCH /products/:id/availability` | Admin | Produk, foto, toggle habis (DELETE = nonaktifkan) ✅ |
-| Menu | `POST /products/:id/variants`, `PATCH/DELETE /products/:id/variants/:variantId` | Admin | Varian (kemasan, HPP & margin di Sprint 4) ✅ |
+| Menu | `POST /products/:id/variants`, `PATCH/DELETE /products/:id/variants/:variantId`, `PUT .../packaging` | Admin | Varian, kemasan per pack, HPP & margin ✅ |
 | Payment | `GET/POST/PATCH /payment-methods` | Login (baca) / Admin | Metode bayar ✅ |
 | Katalog | `GET /catalog` | Login | Menu aktif + varian + stok tersedia (layar POS) ✅ |
 | **Publik** | `GET /public/tables/:qrToken/menu` | Publik | Info toko, meja, status buka, menu pelanggan ✅ |
@@ -669,8 +669,8 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Import | `POST /orders/import/preview`, `POST /orders/import` | Login | Tempel pesan WA |
 | Customers | `GET/POST/PATCH /customers`, `GET /customers/suggest?q=`, `POST /customers/:id/merge` | Login / Admin (merge) | Pelanggan |
 | Alias | `GET/POST/DELETE /product-aliases` | Admin (POST juga Staff) | Alias produk |
-| Ingredients | `GET/POST/PATCH/DELETE /ingredients` | Admin | Bahan baku |
-| Recipes | `GET/POST/PATCH /recipes`, `GET /recipes/:id/cost` | Admin | Resep + rincian biaya |
+| Ingredients | `GET/POST/PATCH /ingredients` | Admin | Bahan baku (nonaktif = soft delete) ✅ |
+| Recipes | `GET/POST/PATCH /recipes`, `GET /recipes/:id/cost` | Admin | Resep + rincian biaya ✅ |
 | Stock | `GET /stock/products`, `GET /stock/ingredients`, `GET /stock/movements`, `POST /stock/adjust` | Admin | Stok, mutasi, penyesuaian/waste ✅ |
 | Purchases | `GET/POST /purchases` | Admin | Stok masuk |
 | Production | `POST /productions/preview`, `POST /productions` | Admin | Produksi |
@@ -701,7 +701,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 1 | Pengguna, Menu, Pengaturan | CRUD user, CRUD menu (kategori/produk/varian/foto/habis), metode bayar, pengaturan toko ✅ |
 | 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) ✅ |
 | 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur ✅ |
-| 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve |
+| 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve ✅ |
 | 5 | Stok lengkap | Stok masuk, produksi, mutasi, opname, penyesuaian/waste, void |
 | 6 | Pre-order massal | Tempel pesan WA, pelanggan, rekap produksi, packing, tagihan, approve massal |
 | 7 | Keuangan & Laporan | Pengeluaran, shift kasir, laporan penjualan/laba rugi/arus kas, dashboard, export |
@@ -774,14 +774,17 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Simulasi browser 3 peran (pelanggan, admin, dapur) dengan update realtime di setiap langkah
 - [ ] Uji coba dengan 2–3 pelanggan sungguhan (HP Android & iPhone) setelah online HTTPS
 
-### Sprint 4: Bahan, Resep, HPP
+### Sprint 4: Bahan, Resep, HPP ✅
 
-- [ ] IngredientsModule: CRUD, biaya per unit dari harga dan isi kemasan
-- [ ] RecipesModule + `CostingService`: biaya resep rekursif (setengah jadi → produk → varian), cegah resep melingkar
-- [ ] Kemasan per varian (`variant_packaging`), HPP & margin di halaman varian
-- [ ] HPP snapshot saat approve memakai `CostingService` (teoretis) atau `avgCostPerPcs`
-- [ ] FE: Bahan Baku (list, cari, form, badge menipis), Resep (baris bahan dinamis + total biaya live), tab HPP di Menu
-- [ ] Unit test CostingService: angka harus cocok dengan tabel 7.3 & 7.5 (pembulatan Rp10)
+- [x] IngredientsModule: CRUD bahan mentah & kemasan (biaya per unit = harga ÷ isi kemasan; ubah harga → HPP langsung ikut), bahan setengah jadi dibuat lewat resep
+- [x] RecipesModule: resep setengah jadi (membuat bahan hasil) & resep produk per 1 pcs, rincian biaya per bahan, tolak bahan ganda, kemasan di resep produk, dan resep melingkar
+- [x] `CostGraph` murni + `CostingService`: biaya rekursif setengah jadi → produk → varian, pembulatan Rp10 per pcs
+- [x] Kemasan per varian (`PUT /products/:id/variants/:variantId/packaging`, hanya bahan tipe Kemasan); HPP, margin Rp & % per varian di Menu
+- [x] Snapshot HPP saat approve: biaya aktual per pcs (hasil produksi) atau HPP teoretis resep + kemasan
+- [x] Data seeder dipisah ke `prisma/seed-data.ts` (dipakai seeder & test)
+- [x] FE: halaman Bahan, Resep & HPP (bahan: cari/filter/biaya per unit; resep: editor baris dinamis dengan total biaya live), HPP/margin + editor kemasan di dialog produk
+- [x] Unit test: angka cocok dengan PRD 7.2, 7.3, dan **seluruh 16 baris 7.5**; perubahan harga; resep melingkar
+- [x] Test e2e (7 skenario): hak akses, HPP seeder, resep bertingkat, kemasan, harga naik → HPP naik, tolak resep melingkar, snapshot HPP tidak berubah setelah harga naik
 
 ### Sprint 5: Stok Lengkap
 

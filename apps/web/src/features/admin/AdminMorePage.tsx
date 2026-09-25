@@ -49,7 +49,7 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         label: 'Bahan, Resep & HPP',
         description: 'Bahan baku, resep bertingkat, kemasan',
         icon: BookOpen,
-        sprint: 'Sprint 4',
+        to: '/admin/lainnya/resep',
       },
       {
         label: 'Pelanggan & Alias',

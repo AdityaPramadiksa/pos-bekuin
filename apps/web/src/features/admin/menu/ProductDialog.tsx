@@ -10,7 +10,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, MoneyInput, Select, Textarea } from '@/components/ui/input';
 import { Switch, SwitchRow } from '@/components/ui/switch';
 import { api, errorMessage } from '@/lib/api';
-import { useCategories } from '@/lib/queries';
+import { useCategories, useIngredients } from '@/lib/queries';
 import { useProductCache } from './useProductCache';
 
 export function ProductDialog({
@@ -318,6 +318,135 @@ function VariantRow({
           </Button>
         </div>
       </div>
+      {variant && <VariantCost productId={productId} variant={variant} />}
+    </div>
+  );
+}
+
+/** HPP & margin + editor kemasan per pack untuk satu varian. */
+function VariantCost({ productId, variant }: { productId: string; variant: VariantView }) {
+  const [editing, setEditing] = useState(false);
+  const ingredients = useIngredients();
+  const saveToCache = useProductCache();
+  const [items, setItems] = useState(
+    variant.packaging.map((p) => ({ ingredientId: p.ingredientId, qty: p.qty })),
+  );
+  const packagingOptions = (ingredients.data ?? []).filter(
+    (i) => i.type === 'PACKAGING' && i.isActive,
+  );
+
+  const save = useMutation({
+    mutationFn: async () =>
+      (
+        await api.put<ProductView>(`/products/${productId}/variants/${variant.id}/packaging`, {
+          items: items.filter((i) => i.ingredientId && i.qty > 0),
+        })
+      ).data,
+    onSuccess: (product) => {
+      saveToCache(product);
+      setEditing(false);
+      toast.success('Kemasan disimpan');
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
+  const tone =
+    variant.marginPct === null
+      ? 'text-stone-500'
+      : variant.marginPct < 25
+        ? 'text-red-600'
+        : variant.marginPct < 30
+          ? 'text-amber-700'
+          : 'text-green-700';
+
+  return (
+    <div className="mt-2 border-t border-dashed border-stone-200 pt-2 text-xs">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {variant.hppPerPack === null ? (
+          <span className="text-amber-700">
+            HPP belum ada — buat resep produk di Bahan, Resep & HPP
+          </span>
+        ) : (
+          <>
+            <span>
+              HPP <b>{formatRupiah(variant.hppPerPack)}</b>
+            </span>
+            <span className={tone}>
+              Margin <b>{formatRupiah(variant.margin ?? 0)}</b> ({variant.marginPct}%)
+            </span>
+          </>
+        )}
+        <button
+          className="text-brand-700 ml-auto font-medium"
+          onClick={() => setEditing((v) => !v)}
+        >
+          Kemasan:{' '}
+          {variant.packaging.length
+            ? variant.packaging.map((p) => `${p.name}${p.qty !== 1 ? ` ×${p.qty}` : ''}`).join(', ')
+            : 'belum diatur'}
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-2 space-y-2 rounded-lg bg-stone-50 p-2">
+          {items.map((it, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Select
+                aria-label="Kemasan"
+                value={it.ingredientId}
+                onChange={(e) =>
+                  setItems(
+                    items.map((x, i) => (i === idx ? { ...x, ingredientId: e.target.value } : x)),
+                  )
+                }
+              >
+                <option value="">— Pilih kemasan —</option>
+                {packagingOptions.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name} ({formatRupiah(o.unitCost)})
+                  </option>
+                ))}
+              </Select>
+              <Input
+                aria-label="Jumlah per pack"
+                type="number"
+                min={0}
+                step="any"
+                className="w-20"
+                value={it.qty || ''}
+                onChange={(e) =>
+                  setItems(
+                    items.map((x, i) => (i === idx ? { ...x, qty: Number(e.target.value) } : x)),
+                  )
+                }
+              />
+              <button
+                aria-label="Hapus"
+                onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                className="text-stone-400 hover:text-red-600"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setItems([...items, { ingredientId: '', qty: 1 }])}
+            >
+              <Plus className="size-4" /> Kemasan
+            </Button>
+            <Button
+              size="sm"
+              className="ml-auto"
+              loading={save.isPending}
+              onClick={() => save.mutate()}
+            >
+              Simpan kemasan
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

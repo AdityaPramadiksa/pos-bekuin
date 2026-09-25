@@ -3,13 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env';
+import { CostingModule } from './costing/costing.module';
 import { HealthController } from './health/health.controller';
+import { IngredientsModule } from './ingredients/ingredients.module';
 import { MenuModule } from './menu/menu.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PublicModule } from './public/public.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { RecipesModule } from './recipes/recipes.module';
 import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
 import { StockModule } from './stock/stock.module';
@@ -27,7 +30,10 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     SettingsModule,
     PaymentMethodsModule,
+    CostingModule,
     MenuModule,
+    IngredientsModule,
+    RecipesModule,
     RealtimeModule,
     StockModule,
     OrdersModule,

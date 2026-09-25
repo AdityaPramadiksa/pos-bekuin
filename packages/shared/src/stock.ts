@@ -72,3 +72,46 @@ export interface StockMovementView {
   userName: string;
   createdAt: string;
 }
+
+export interface IngredientView {
+  id: string;
+  name: string;
+  type: IngredientType;
+  baseUnit: BaseUnit;
+  purchaseUnit: string | null;
+  purchaseQty: number;
+  lastPrice: number;
+  /** Biaya rata-rata per satuan dasar (dari belanja). */
+  avgCostPerUnit: number;
+  /** Biaya yang dipakai HPP: setengah jadi = dari resep, lainnya = rata-rata. */
+  unitCost: number;
+  stockQty: number;
+  minStock: number;
+  isActive: boolean;
+  recipeId: string | null;
+}
+
+export interface RecipeLineView {
+  ingredientId: string;
+  name: string;
+  baseUnit: BaseUnit;
+  qty: number;
+  unitCost: number;
+  cost: number;
+}
+
+export interface RecipeView {
+  id: string;
+  name: string;
+  type: 'SEMI_FINISHED' | 'PRODUCT';
+  yieldQty: number;
+  yieldUnit: BaseUnit;
+  outputIngredientId: string | null;
+  productId: string | null;
+  productName: string | null;
+  note: string | null;
+  isActive: boolean;
+  lines: RecipeLineView[];
+  totalCost: number;
+  costPerUnit: number;
+}

@@ -1,7 +1,11 @@
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
+  IsNumber,
+  ValidateNested,
   IsInt,
   IsOptional,
   IsString,
@@ -114,4 +118,21 @@ export class CreateVariantDto {
 
 export class UpdateVariantDto extends PartialType(CreateVariantDto) {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+export class PackagingItemDto {
+  @ApiProperty() @IsString() ingredientId: string;
+  @ApiProperty({ example: 1, description: 'Jumlah per pack' })
+  @IsNumber({ maxDecimalPlaces: 4 })
+  @Min(0.0001)
+  qty: number;
+}
+
+export class SetPackagingDto {
+  @ApiProperty({ type: [PackagingItemDto] })
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => PackagingItemDto)
+  items: PackagingItemDto[];
 }

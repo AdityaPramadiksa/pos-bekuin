@@ -7,6 +7,7 @@ import {
   ParseBoolPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ import {
   CreateCategoryDto,
   CreateProductDto,
   CreateVariantDto,
+  SetPackagingDto,
   UpdateCategoryDto,
   UpdateProductDto,
   UpdateVariantDto,
@@ -121,6 +123,16 @@ export class MenuController {
     @Body() dto: UpdateVariantDto,
   ) {
     return this.products.updateVariant(id, variantId, dto);
+  }
+
+  @Roles('ADMIN')
+  @Put('products/:id/variants/:variantId/packaging')
+  setPackaging(
+    @Param('id') id: string,
+    @Param('variantId') variantId: string,
+    @Body() dto: SetPackagingDto,
+  ) {
+    return this.products.setPackaging(id, variantId, dto.items);
   }
 
   @Roles('ADMIN')

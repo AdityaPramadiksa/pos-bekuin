@@ -8,6 +8,7 @@ import { type OrderSource, OrderStatus, type OrderType, Prisma } from '@prisma/c
 import { normalizeName, type OrderListResponse, type OrderView } from '@bekuin/shared';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { addDays, businessRange, dateOnly, todayKey } from '../common/dates';
+import { CostingService } from '../costing/costing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StockService } from '../stock/stock.service';
@@ -54,6 +55,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly stock: StockService,
     private readonly realtime: RealtimeGateway,
+    private readonly costing: CostingService,
   ) {}
 
   // ───────────────────────────── Baca ─────────────────────────────
@@ -278,7 +280,7 @@ export class OrdersService {
         variant: {
           include: {
             product: { select: { id: true, avgCostPerPcs: true } },
-            packaging: { include: { ingredient: { select: { avgCostPerUnit: true } } } },
+            packaging: { select: { ingredientId: true, qty: true } },
           },
         },
       },
@@ -319,16 +321,15 @@ export class OrdersService {
       { allowNegativeProducts: !block, allowNegativeIngredients: !block },
     );
 
-    // 4. Snapshot HPP per pack (biaya rata-rata saat ini; resep teoretis menyusul di Sprint 4).
+    // 4. Snapshot HPP per pack: biaya aktual per pcs (hasil produksi) atau HPP teoretis resep + kemasan.
+    const graph = await this.costing.graph(tx);
     let hppTotal = 0;
     for (const item of items) {
-      const packaging = item.variant.packaging.reduce(
-        (sum, p) => sum.plus(p.qty.mul(p.ingredient.avgCostPerUnit)),
-        new Prisma.Decimal(0),
-      );
-      const hppPerPack = Math.round(
-        item.variant.product.avgCostPerPcs.mul(item.packSize).plus(packaging).toNumber(),
-      );
+      const hppPerPack = this.costing.hppPerPack(graph, {
+        packSize: item.packSize,
+        product: item.variant.product,
+        packaging: item.variant.packaging,
+      });
       hppTotal += hppPerPack * item.qty;
       await tx.orderItem.update({
         where: { id: item.id },

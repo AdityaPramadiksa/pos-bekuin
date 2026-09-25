@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import type { ProductView } from '@bekuin/shared';
 import { rethrowPrismaError } from '../common/prisma-errors';
+import { type CostGraph, packHpp, roundTo10 } from '../costing/cost-graph';
+import { CostingService } from '../costing/costing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CreateProductDto,
@@ -11,15 +13,22 @@ import type {
 } from './dto/menu.dto';
 
 const productInclude = {
+  recipe: { select: { id: true } },
   variants: {
-    include: { category: true, _count: { select: { orderItems: true } } },
+    include: {
+      category: true,
+      _count: { select: { orderItems: true } },
+      packaging: { include: { ingredient: { select: { name: true } } } },
+    },
     orderBy: [{ category: { sortOrder: 'asc' } }, { packSize: 'asc' }],
   },
 } satisfies Prisma.ProductInclude;
 
 type ProductWithVariants = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
 
-function toView(p: ProductWithVariants): ProductView {
+function toView(p: ProductWithVariants, graph: CostGraph): ProductView {
+  const rawCost = graph.productCostPerPcs(p.id);
+  const costPerPcs = rawCost === null ? null : roundTo10(rawCost);
   return {
     id: p.id,
     name: p.name,
@@ -30,18 +39,36 @@ function toView(p: ProductWithVariants): ProductView {
     isActive: p.isActive,
     isAvailable: p.isAvailable,
     sortOrder: p.sortOrder,
-    variants: p.variants.map((v) => ({
-      id: v.id,
-      productId: v.productId,
-      categoryId: v.categoryId,
-      categoryCode: v.category.code,
-      categoryName: v.category.name,
-      packSize: v.packSize,
-      price: v.price,
-      isActive: v.isActive,
-      sortOrder: v.sortOrder,
-      usedInOrders: v._count.orderItems > 0,
-    })),
+    costPerPcs,
+    recipeId: p.recipe?.id ?? null,
+    variants: p.variants.map((v) => {
+      const packaging = v.packaging.map((pk) => ({
+        ingredientId: pk.ingredientId,
+        name: pk.ingredient.name,
+        qty: pk.qty.toNumber(),
+        unitCost: graph.unitCost(pk.ingredientId).toDecimalPlaces(4).toNumber(),
+      }));
+      const packagingCost = packaging.reduce((sum, pk) => sum + pk.qty * pk.unitCost, 0);
+      const hppPerPack =
+        costPerPcs === null ? null : packHpp(costPerPcs, v.packSize, packagingCost);
+      return {
+        id: v.id,
+        productId: v.productId,
+        categoryId: v.categoryId,
+        categoryCode: v.category.code,
+        categoryName: v.category.name,
+        packSize: v.packSize,
+        price: v.price,
+        isActive: v.isActive,
+        sortOrder: v.sortOrder,
+        usedInOrders: v._count.orderItems > 0,
+        packaging,
+        hppPerPack,
+        margin: hppPerPack === null ? null : v.price - hppPerPack,
+        marginPct:
+          hppPerPack === null ? null : Math.round(((v.price - hppPerPack) * 100) / v.price),
+      };
+    }),
   };
 }
 
@@ -49,7 +76,10 @@ const VARIANT_CONFLICT = 'Varian dengan kategori dan ukuran pack itu sudah ada';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly costing: CostingService,
+  ) {}
 
   async list(includeInactive: boolean): Promise<ProductView[]> {
     const products = await this.prisma.product.findMany({
@@ -57,7 +87,8 @@ export class ProductsService {
       include: productInclude,
       orderBy: [{ isActive: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
     });
-    return products.map(toView);
+    const graph = await this.costing.graph();
+    return products.map((p) => toView(p, graph));
   }
 
   async get(id: string): Promise<ProductView> {
@@ -66,13 +97,13 @@ export class ProductsService {
       include: productInclude,
     });
     if (!product) throw new NotFoundException('Produk tidak ditemukan');
-    return toView(product);
+    return toView(product, await this.costing.graph());
   }
 
   async create(dto: CreateProductDto): Promise<ProductView> {
     try {
       const product = await this.prisma.product.create({ data: dto, include: productInclude });
-      return toView(product);
+      return toView(product, await this.costing.graph());
     } catch (error) {
       rethrowPrismaError(error, 'Nama produk sudah dipakai');
     }
@@ -86,7 +117,7 @@ export class ProductsService {
         data: dto,
         include: productInclude,
       });
-      return toView(product);
+      return toView(product, await this.costing.graph());
     } catch (error) {
       rethrowPrismaError(error, 'Nama produk sudah dipakai');
     }
@@ -139,6 +170,27 @@ export class ProductsService {
     } else {
       await this.prisma.productVariant.delete({ where: { id: variantId } });
     }
+    return this.get(productId);
+  }
+
+  /** Ganti seluruh kemasan per pack satu varian (hanya bahan bertipe kemasan). */
+  async setPackaging(
+    productId: string,
+    variantId: string,
+    items: { ingredientId: string; qty: number }[],
+  ): Promise<ProductView> {
+    await this.findVariant(productId, variantId);
+    const ids = items.map((i) => i.ingredientId);
+    if (new Set(ids).size !== ids.length)
+      throw new BadRequestException('Kemasan yang sama muncul lebih dari sekali');
+    const found = await this.prisma.ingredient.count({
+      where: { id: { in: ids }, type: 'PACKAGING' },
+    });
+    if (found !== ids.length) throw new BadRequestException('Kemasan harus bahan bertipe Kemasan');
+    await this.prisma.$transaction([
+      this.prisma.variantPackaging.deleteMany({ where: { variantId } }),
+      this.prisma.variantPackaging.createMany({ data: items.map((i) => ({ ...i, variantId })) }),
+    ]);
     return this.get(productId);
   }
 
