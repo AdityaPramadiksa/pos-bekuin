@@ -8,6 +8,7 @@ import { Input, Select } from '@/components/ui/input';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
 import { OrderCard } from '@/features/orders/OrderCard';
 import { OrderDetailDialog } from '@/features/orders/OrderDetailDialog';
+import { VoidOrderButton } from '@/features/orders/VoidOrderButton';
 import { dateKeyWita } from '@/features/orders/order-format';
 import { ApproveDialog } from '@/features/admin/approval/ApproveDialog';
 import { Chips } from '@/components/ui/chips';
@@ -131,6 +132,7 @@ export function OrdersPage() {
           setSelected(null);
           setProcessing(o.id);
         }}
+        extraActions={(o) => <VoidOrderButton order={o} />}
       />
       <ApproveDialog orderId={processing} onClose={() => setProcessing(null)} />
     </>

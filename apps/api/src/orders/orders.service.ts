@@ -367,6 +367,46 @@ export class OrdersService {
     });
   }
 
+  /** Void order lunas: stok pcs & kemasan dikembalikan (VOID_RETURN); order tetap tercatat sebagai VOIDED. */
+  async void(id: string, reason: string, user: JwtPayload): Promise<OrderView> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM orders WHERE id = ${id} FOR UPDATE`;
+      const order = await tx.order.findUnique({
+        where: { id },
+        include: { items: { include: { variant: { include: { packaging: true } } } } },
+      });
+      if (!order) throw new NotFoundException('Order tidak ditemukan');
+      if (order.status !== 'PAID')
+        throw new BadRequestException('Hanya order lunas yang bisa di-void');
+
+      const changes: StockChange[] = [];
+      for (const [productId, pcs] of pcsByProduct(
+        order.items.map((i) => ({ ...i, productId: i.variant.productId })),
+      )) {
+        changes.push({ itemType: 'PRODUCT', id: productId, qty: pcs });
+      }
+      for (const item of order.items) {
+        for (const pack of item.variant.packaging) {
+          changes.push({
+            itemType: 'INGREDIENT',
+            id: pack.ingredientId,
+            qty: pack.qty.mul(item.qty),
+          });
+        }
+      }
+      await this.stock.apply(tx, changes, {
+        type: 'VOID_RETURN',
+        userId: user.sub,
+        refType: 'ORDER',
+        refId: id,
+        note: reason,
+      });
+      await this.setStatus(tx, id, 'PAID', 'VOIDED', 'VOIDED', user.sub, reason);
+    });
+    this.realtime.stockChanged();
+    return this.afterWrite(id, user, 'order.updated');
+  }
+
   // ───────────────────────────── Bantuan ─────────────────────────────
 
   /** Muat ulang order, kirim event realtime, balikan view. */

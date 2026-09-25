@@ -115,9 +115,11 @@ export function planStock(
     let newAvgCost = row.avgCost;
     if (options.updateAverageCost && qtyChange.gt(0)) {
       const oldQty = Prisma.Decimal.max(row.qty, 0);
-      newAvgCost = oldQty.isZero()
-        ? incomingCost
-        : oldQty.mul(row.avgCost).plus(qtyChange.mul(incomingCost)).div(oldQty.plus(qtyChange));
+      // Stok lama tanpa biaya (misal stok awal tanpa harga) tidak boleh menarik rata-rata ke nol.
+      newAvgCost =
+        oldQty.isZero() || row.avgCost.isZero()
+          ? incomingCost
+          : oldQty.mul(row.avgCost).plus(qtyChange.mul(incomingCost)).div(oldQty.plus(qtyChange));
     }
 
     planned.push({

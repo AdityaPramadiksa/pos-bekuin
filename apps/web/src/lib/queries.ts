@@ -1,5 +1,8 @@
 import type {
   CatalogResponse,
+  OpnameView,
+  ProductionView,
+  PurchaseView,
   IngredientView,
   RecipeView,
   IngredientStockView,
@@ -129,3 +132,13 @@ export const useIngredients = () =>
 
 export const useRecipes = () =>
   useQuery({ queryKey: ['recipes'], queryFn: () => get<RecipeView[]>('/recipes') });
+
+export const usePurchases = () =>
+  useQuery({ queryKey: ['stock', 'purchases'], queryFn: () => get<PurchaseView[]>('/purchases') });
+export const useProductions = () =>
+  useQuery({
+    queryKey: ['stock', 'productions'],
+    queryFn: () => get<ProductionView[]>('/productions'),
+  });
+export const useOpnames = () =>
+  useQuery({ queryKey: ['stock', 'opnames'], queryFn: () => get<OpnameView[]>('/opnames') });

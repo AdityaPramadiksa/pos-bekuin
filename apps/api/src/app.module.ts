@@ -7,10 +7,13 @@ import { CostingModule } from './costing/costing.module';
 import { HealthController } from './health/health.controller';
 import { IngredientsModule } from './ingredients/ingredients.module';
 import { MenuModule } from './menu/menu.module';
+import { OpnamesModule } from './opnames/opnames.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductionsModule } from './productions/productions.module';
 import { PublicModule } from './public/public.module';
+import { PurchasesModule } from './purchases/purchases.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RecipesModule } from './recipes/recipes.module';
 import { ReportsModule } from './reports/reports.module';
@@ -40,6 +43,9 @@ import { UsersModule } from './users/users.module';
     ReportsModule,
     TablesModule,
     PublicModule,
+    PurchasesModule,
+    ProductionsModule,
+    OpnamesModule,
     // Modul berikutnya (lihat PRD bagian 10): Ingredients, Recipes, Purchases, Production, Opname,
     // Customers, OrderImport, Expenses, CashSessions, Reports.
   ],

@@ -45,6 +45,7 @@ pnpm dev            # API :3000, web :5173
 | 2 | POS & Approval (bisa jualan) | ✅ Selesai |
 | 3 | Self-order QR meja & antrian dapur | ✅ Selesai |
 | 4 | Bahan, resep bertingkat, HPP & margin | ✅ Selesai |
-| 5–8 | Stok lengkap, pre-order WA, keuangan & laporan, deploy | ⏳ |
+| 5 | Stok masuk, produksi, opname, void | ✅ Selesai |
+| 6–8 | Pre-order WA, keuangan & laporan, deploy | ⏳ |
 
 Checklist lengkap ada di [PRD.md bagian 10](PRD.md#10-task-breakdown).

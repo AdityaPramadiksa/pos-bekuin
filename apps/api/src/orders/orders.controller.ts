@@ -63,6 +63,14 @@ export class OrdersController {
     return this.orders.reject(id, dto.reason, user);
   }
 
+  /** Void order lunas (wajib alasan): stok dikembalikan, order tetap tercatat. */
+  @Roles('ADMIN')
+  @Post(':id/void')
+  @HttpCode(200)
+  void(@Param('id') id: string, @Body() dto: ReasonDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.void(id, dto.reason, user);
+  }
+
   /** Data siap cetak: order + info toko. */
   @Roles('ADMIN')
   @Get(':id/receipt')

@@ -90,6 +90,18 @@ describe('planStock', () => {
     expect(planned[0].newAvgCost.toNumber()).toBe(80);
   });
 
+  it('stok lama tanpa biaya memakai biaya masuk (tidak menarik rata-rata ke nol)', () => {
+    const tanpaBiaya = { ...udang, avgCost: D(0) };
+    const { planned } = planStock(
+      rows(tanpaBiaya),
+      [{ itemType: 'PRODUCT', id: 'p1', qty: 60, unitCost: 2157 }],
+      {
+        updateAverageCost: true,
+      },
+    );
+    expect(planned[0].newAvgCost.toNumber()).toBe(2157);
+  });
+
   it('mengabaikan perubahan nol dan membuat pesan kekurangan yang jelas', () => {
     expect(
       mergeChanges([

@@ -1,6 +1,7 @@
 export * from './enums';
 export * from './format';
 export * from './hours';
+export * from './inventory';
 export * from './menu';
 export * from './orders';
 export * from './public';

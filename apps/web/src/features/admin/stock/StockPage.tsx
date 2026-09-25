@@ -7,38 +7,37 @@ import { Chips } from '@/components/ui/chips';
 import { useIngredientStock, useProductStock, useStockMovements } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { AdjustStockDialog, type AdjustTarget } from './AdjustStockDialog';
+import { OpnameTab } from './OpnameTab';
+import { ProductionTab } from './ProductionTab';
+import { PurchasesTab } from './PurchasesTab';
 import { fmtQty } from '@/features/orders/order-format';
 import { StockBadge } from './StockBadge';
 
-export type StockTab = 'products' | 'ingredients' | 'movements';
+const TABS = [
+  { key: 'products', label: 'Produk' },
+  { key: 'ingredients', label: 'Bahan & Kemasan' },
+  { key: 'purchases', label: 'Stok Masuk' },
+  { key: 'production', label: 'Produksi' },
+  { key: 'opname', label: 'Opname' },
+  { key: 'movements', label: 'Riwayat Mutasi' },
+];
 
-export function StockPage({
-  extraTabs = [],
-  renderExtra,
-}: {
-  extraTabs?: { key: string; label: string }[];
-  renderExtra?: (tab: string) => React.ReactNode;
-}) {
-  const [tab, setTab] = useState<string>('products');
+export function StockPage() {
+  const [tab, setTab] = useState<string>(
+    () => new URLSearchParams(window.location.search).get('tab') ?? 'products',
+  );
   const [target, setTarget] = useState<AdjustTarget | null>(null);
   return (
     <>
-      <PageHeader title="Stok" subtitle="Stok produk, bahan, dan riwayat mutasi" />
+      <PageHeader title="Stok" subtitle="Stok, belanja, produksi, opname, dan riwayat mutasi" />
       <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
-        <Chips
-          value={tab}
-          onChange={setTab}
-          options={[
-            { key: 'products', label: 'Produk' },
-            { key: 'ingredients', label: 'Bahan & Kemasan' },
-            ...extraTabs,
-            { key: 'movements', label: 'Riwayat Mutasi' },
-          ]}
-        />
+        <Chips value={tab} onChange={setTab} options={TABS} />
         {tab === 'products' && <ProductStock onAdjust={setTarget} />}
         {tab === 'ingredients' && <IngredientStock onAdjust={setTarget} />}
+        {tab === 'purchases' && <PurchasesTab />}
+        {tab === 'production' && <ProductionTab />}
+        {tab === 'opname' && <OpnameTab />}
         {tab === 'movements' && <Movements />}
-        {renderExtra?.(tab)}
       </div>
       <AdjustStockDialog target={target} onClose={() => setTarget(null)} />
     </>

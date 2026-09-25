@@ -663,7 +663,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Orders | `PATCH /orders/:id`, `POST /orders/:id/cancel` | Login | Hanya saat PENDING ✅ |
 | Orders | `POST /orders/:id/approve` | Admin | Body: paymentMethodId, paidAmount, discount, paymentRef, items (koreksi qty) ✅ |
 | Orders | `POST /orders/bulk-approve` | Admin | Body: `orderIds[]`, `paymentMethodId`; hasil per order |
-| Orders | `POST /orders/:id/reject` ✅, `POST /orders/:id/void` | Admin | Wajib alasan |
+| Orders | `POST /orders/:id/reject`, `POST /orders/:id/void` | Admin | Wajib alasan ✅ |
 | Orders | `GET /orders/:id/receipt`, `/label`, `/invoice-text` | Admin | Data struk, label, teks tagihan |
 | Kitchen | `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` | Login | Antrian dapur, ubah status penyiapan ✅ |
 | Import | `POST /orders/import/preview`, `POST /orders/import` | Login | Tempel pesan WA |
@@ -672,9 +672,9 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Ingredients | `GET/POST/PATCH /ingredients` | Admin | Bahan baku (nonaktif = soft delete) ✅ |
 | Recipes | `GET/POST/PATCH /recipes`, `GET /recipes/:id/cost` | Admin | Resep + rincian biaya ✅ |
 | Stock | `GET /stock/products`, `GET /stock/ingredients`, `GET /stock/movements`, `POST /stock/adjust` | Admin | Stok, mutasi, penyesuaian/waste ✅ |
-| Purchases | `GET/POST /purchases` | Admin | Stok masuk |
-| Production | `POST /productions/preview`, `POST /productions` | Admin | Produksi |
-| Opname | `GET/POST /opnames`, `PATCH /opnames/:id`, `POST /opnames/:id/finalize` | Admin | Stok opname |
+| Purchases | `GET/POST /purchases` | Admin | Stok masuk ✅ |
+| Production | `GET /productions`, `POST /productions/preview`, `POST /productions` | Admin | Produksi ✅ |
+| Opname | `GET/POST /opnames`, `GET/PATCH/DELETE /opnames/:id`, `POST /opnames/:id/finalize` | Admin | Stok opname ✅ |
 | Plan | `GET /reports/production-plan?date=` | Admin | Rekap produksi + daftar belanja |
 | Packing | `GET /orders/packing-list?date=` | Admin | Daftar packing |
 | Expenses | `GET/POST/PATCH/DELETE /expenses`, `GET/POST/PATCH /expense-categories` | Admin | Pengeluaran |
@@ -702,7 +702,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) ✅ |
 | 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur ✅ |
 | 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve ✅ |
-| 5 | Stok lengkap | Stok masuk, produksi, mutasi, opname, penyesuaian/waste, void |
+| 5 | Stok lengkap | Stok masuk, produksi, mutasi, opname, penyesuaian/waste, void ✅ |
 | 6 | Pre-order massal | Tempel pesan WA, pelanggan, rekap produksi, packing, tagihan, approve massal |
 | 7 | Keuangan & Laporan | Pengeluaran, shift kasir, laporan penjualan/laba rugi/arus kas, dashboard, export |
 | 8 | Polish & Deploy | Web Push, keamanan, performa, deploy HTTPS, backup, dokumentasi |
@@ -786,15 +786,16 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Unit test: angka cocok dengan PRD 7.2, 7.3, dan **seluruh 16 baris 7.5**; perubahan harga; resep melingkar
 - [x] Test e2e (7 skenario): hak akses, HPP seeder, resep bertingkat, kemasan, harga naik → HPP naik, tolak resep melingkar, snapshot HPP tidak berubah setelah harga naik
 
-### Sprint 5: Stok Lengkap
+### Sprint 5: Stok Lengkap ✅
 
-- [ ] Stok Masuk + weighted average harga rata-rata + foto nota
-- [ ] Produksi setengah jadi & produk, endpoint preview kebutuhan bahan, `yieldVariance`, update `avgCostPerPcs`
-- [ ] Stok opname: draft, input fisik, finalisasi `OPNAME_ADJUST`
-- [ ] Penyesuaian manual & waste dengan alasan
-- [ ] Void order PAID + `VOID_RETURN`
-- [ ] FE: Stok Produk, Stok Bahan, Stok Masuk, Produksi, Opname, Riwayat Mutasi
-- [ ] Test: produksi 60 pcs Udang Keju memotong adonan 1.500 g, keju oles 420 g, tepung roti 600 g
+- [x] Stok masuk (`POST /purchases`): konversi ke satuan dasar, rata-rata tertimbang, harga beli terakhir, foto nota; tolak tanggal masa depan & bahan setengah jadi
+- [x] Produksi: `POST /productions/preview` (kebutuhan vs stok, perkiraan biaya) dan `POST /productions` (bahan keluar `PRODUCTION_OUT`, hasil masuk `PRODUCTION_IN` dengan biaya aktual, `yieldVariance`, update `avgCostPerPcs`/biaya setengah jadi)
+- [x] Stok lama tanpa biaya (misal stok awal) tidak menarik rata-rata ke nol
+- [x] Stok opname: draft (snapshot stok sistem) → input fisik → finalisasi `OPNAME_ADJUST` terhadap stok saat final; hapus draft
+- [x] Penyesuaian manual & waste dengan alasan (waste hanya mengurangi)
+- [x] Void order PAID (`POST /orders/:id/void`, wajib alasan) + `VOID_RETURN` stok pcs & kemasan
+- [x] FE Stok: tab Stok Masuk (konversi & harga per unit live, foto nota), Produksi (pratinjau tabel, hasil aktual), Opname (tabel hitung fisik, simpan draft, finalkan), Riwayat Mutasi; tombol Void di detail transaksi
+- [x] Test e2e (6 skenario): **preview 60 pcs Udang Keju = adonan 1.500 g, keju oles 420 g, tepung roti 600 g**, stok masuk rata-rata tertimbang, produksi bertingkat + yield variance, approve memakai biaya aktual, void mengembalikan stok, opname, waste
 
 ### Sprint 6: Pre-Order Massal, Rekap Produksi, Packing
 
