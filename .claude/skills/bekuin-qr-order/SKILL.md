@@ -16,6 +16,8 @@ description: Aturan self-order QR meja (role pelanggan tanpa login), endpoint /p
   - **Harga dari DB**, total dihitung server; tolak bila total > `qrMaxOrderTotal`.
   - Batas: 10 percobaan / 10 menit per (qrToken + IP) termasuk yang gagal validasi (`PublicThrottlerGuard`), maksimal 3 order PENDING per meja (dikunci `FOR UPDATE` pada baris meja).
   - Simpan `source = QR_TABLE`, `type = DINE_IN | TAKEAWAY`, `tableId`, `createdById = null`, `customerName` wajib, `customerPhone` opsional (tautkan/buat `customers` bila diisi), `order_logs` dengan `userId = null`.
+  - `paymentMethodId` wajib: hanya metode `isActive` + `showToCustomer` (bawaan QRIS & Cash). Disimpan di order; `payAtCashier = type CASH`.
+  - QRIS: `uniqueCode` 1–99 (`pickUniqueCode`, dikunci advisory lock) agar nominal `total + uniqueCode` tidak sama dengan order QRIS PENDING lain.
   - Balikan hanya `{ orderNo, publicToken, total }`.
 - `POST /public/orders/:publicToken/payment-proof`: hanya saat PENDING; gambar jpg/png/webp ≤ 5 MB; simpan `paymentProofUrl`; emit `order.updated` ke `admins`.
 - `POST /public/orders/:publicToken/cancel`: hanya saat PENDING dan belum ada bukti bayar.
@@ -34,3 +36,10 @@ PENDING → (admin approve QRIS) PAID+QUEUED → PREPARING → READY → HANDED_
 
 ## QR
 - URL QR: `${PUBLIC_WEB_URL}/m/${qrToken}`. Rotate = token baru, token lama langsung 404.
+
+## Pembayaran & approval
+- `GET /public/orders/:publicToken` menyertakan `payment` (tipe, nominal = total + kode unik, `qrisPayload` bernominal dari `settings.qrisPayload` lewat `qrisWithAmount`). Jangan pernah mengirim `order.id`.
+- `settings.qrisPayload` hanya QRIS **statis** dengan CRC valid (`qrisInfo`); web membacanya otomatis dari gambar QRIS yang diunggah.
+- Approve order `QR_TABLE`: item/jumlah dan diskon tidak boleh berubah (`assertCustomerOrderUnchanged`), juga lewat `PATCH /orders/:id`. Metode default = pilihan pelanggan; QRIS pelanggan dicatat `paidAmount = total + uniqueCode`. Omzet tetap memakai `total`.
+- Bukti bayar opsional; unggah hanya untuk metode non-Cash.
+

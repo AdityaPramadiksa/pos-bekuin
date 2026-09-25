@@ -98,7 +98,10 @@ export class ApproveItemDto {
 }
 
 export class ApproveOrderDto {
-  @ApiProperty() @IsString() paymentMethodId: string;
+  @ApiPropertyOptional({ description: 'Kosong = pakai cara bayar pilihan pelanggan (order QR)' })
+  @IsOptional()
+  @IsString()
+  paymentMethodId?: string;
 
   @ApiPropertyOptional({ description: 'Wajib untuk Cash: uang diterima (rupiah)' })
   @IsOptional()

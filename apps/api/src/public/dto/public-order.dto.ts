@@ -4,7 +4,6 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -55,8 +54,8 @@ export class CreatePublicOrderDto {
   @ApiPropertyOptional() @IsOptional() @Transform(trimOrNull) @IsString() @MaxLength(150) note?:
     string | null;
 
-  @ApiPropertyOptional({ description: 'true = bayar di kasir (bila diizinkan toko)' })
-  @IsOptional()
-  @IsBoolean()
-  payAtCashier?: boolean;
+  @ApiProperty({ description: 'Metode bayar pilihan pelanggan (yang tampil di QR pelanggan)' })
+  @IsString({ message: 'Pilih cara bayar' })
+  @MaxLength(40)
+  paymentMethodId: string;
 }

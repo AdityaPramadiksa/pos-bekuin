@@ -11,3 +11,4 @@ export * from './reports';
 export * from './schemas';
 export * from './stock';
 export * from './types';
+export * from './qris';

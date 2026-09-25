@@ -1,17 +1,18 @@
 import { formatRupiah, type PublicOrderView } from '@bekuin/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Circle, Download, ImageUp, Loader2, XCircle } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react';
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { categoryLabel, formatTime } from '@/features/orders/order-format';
-import { assetUrl, errorMessage, publicApi } from '@/lib/api';
+import { errorMessage, publicApi } from '@/lib/api';
 import { compressImage } from '@/lib/image';
 import { createSocket } from '@/lib/socket';
 import { cn } from '@/lib/utils';
 import { findMyOrder } from './my-orders';
+import { PaymentPanel } from './PaymentPanel';
 
 /** Tahap yang dilihat pelanggan. */
 function steps(o: PublicOrderView) {
@@ -60,7 +61,10 @@ function headline(o: PublicOrderView): {
       };
     return {
       title: 'Menunggu pembayaran',
-      sub: 'Scan QRIS di bawah, bayar sesuai total, lalu kirim bukti bayar.',
+      sub:
+        o.payment.type === 'TRANSFER'
+          ? 'Transfer sesuai nominal di bawah.'
+          : 'Scan QRIS di bawah dan bayar sesuai nominal.',
       tone: 'amber',
     };
   }
@@ -130,7 +134,6 @@ export function OrderTrackingPage() {
 
 function Tracking({ order: o }: { order: PublicOrderView }) {
   const queryClient = useQueryClient();
-  const fileInput = useRef<HTMLInputElement>(null);
   const mine = findMyOrder(o.publicToken);
   const h = headline(o);
   const setData = (data: PublicOrderView) =>
@@ -159,8 +162,6 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
-  const showQris = o.status === 'PENDING' && !o.payAtCashier;
-
   return (
     <div className="bg-cream mx-auto min-h-dvh max-w-md space-y-4 p-4 pb-10">
       <header className="text-center">
@@ -184,62 +185,8 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
         <p className="text-sm">{h.sub}</p>
       </section>
 
-      {showQris && (
-        <section className="space-y-3 rounded-2xl bg-white p-4 text-center shadow-sm">
-          <p className="text-sm text-stone-600">Total yang harus dibayar</p>
-          <p className="text-brand-700 text-3xl font-bold">{formatRupiah(o.total)}</p>
-          {o.store.qrisImageUrl ? (
-            <>
-              <img
-                src={assetUrl(o.store.qrisImageUrl)}
-                alt="QRIS toko"
-                className="mx-auto w-full max-w-72 rounded-xl border"
-              />
-              <a
-                href={assetUrl(o.store.qrisImageUrl)}
-                download="qris-bekuin"
-                className="text-brand-700 inline-flex items-center gap-1 text-sm font-medium"
-              >
-                <Download className="size-4" /> Simpan gambar QRIS
-              </a>
-              <ol className="list-decimal space-y-1 pl-5 text-left text-sm text-stone-600">
-                <li>Buka GoPay / OVO / DANA / ShopeePay / m-banking, pilih bayar QRIS.</li>
-                <li>Scan QR di atas (atau pilih dari galeri setelah disimpan).</li>
-                <li>
-                  Bayar tepat <b>{formatRupiah(o.total)}</b>, lalu kirim screenshot bukti bayar.
-                </li>
-              </ol>
-            </>
-          ) : (
-            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-              QRIS belum tersedia. Silakan bayar di kasir dengan menyebut nomor pesanan.
-            </p>
-          )}
-          {o.canUploadProof && (
-            <>
-              <Button
-                size="lg"
-                className="w-full"
-                loading={upload.isPending}
-                onClick={() => fileInput.current?.click()}
-              >
-                <ImageUp className="size-5" />{' '}
-                {o.hasPaymentProof ? 'Kirim ulang bukti bayar' : 'Kirim bukti bayar'}
-              </Button>
-              <input
-                ref={fileInput}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) upload.mutate(file);
-                  e.target.value = '';
-                }}
-              />
-            </>
-          )}
-        </section>
+      {o.status === 'PENDING' && (
+        <PaymentPanel order={o} uploading={upload.isPending} onUpload={(f) => upload.mutate(f)} />
       )}
 
       {o.status === 'PAID' && (

@@ -70,11 +70,6 @@ enum PaymentType {
   EWALLET
 }
 
-enum QrPaymentMode {
-  QRIS_ONLY
-  QRIS_OR_CASHIER
-}
-
 enum StockItemType {
   INGREDIENT
   PRODUCT
@@ -151,23 +146,24 @@ model RefreshToken {
 
 /// Satu baris saja (id = "default").
 model Setting {
-  id                     String        @id @default("default")
-  storeName              String        @default("Bekuin")
-  tagline                String?       @default("Frozen Food - Siap Makan")
+  id                     String   @id @default("default")
+  storeName              String   @default("Bekuin")
+  tagline                String?  @default("Frozen Food - Siap Makan")
   address                String?
   phone                  String?
-  receiptFooter          String?       @default("Terima kasih sudah order!")
+  receiptFooter          String?  @default("Terima kasih sudah order!")
   qrisImageUrl           String?
+  /// Isi teks QRIS statis toko (hasil baca gambar QRIS) untuk membuat QR bernominal per order.
+  qrisPayload            String?
   logoUrl                String?
-  isStoreOpen            Boolean       @default(true)
+  isStoreOpen            Boolean  @default(true)
   /// { "mon": ["09:00","21:00"], ... } — kosong = selalu buka selama isStoreOpen
   openingHours           Json?
-  qrOrderingEnabled      Boolean       @default(true)
-  qrPaymentMode          QrPaymentMode @default(QRIS_ONLY)
-  qrMaxOrderTotal        Int           @default(1000000)
-  blockApproveOnLowStock Boolean       @default(true)
-  paperWidthChars        Int           @default(32)
-  updatedAt              DateTime      @updatedAt
+  qrOrderingEnabled      Boolean  @default(true)
+  qrMaxOrderTotal        Int      @default(1000000)
+  blockApproveOnLowStock Boolean  @default(true)
+  paperWidthChars        Int      @default(32)
+  updatedAt              DateTime @updatedAt
 
   @@map("settings")
 }
@@ -396,8 +392,10 @@ model Order {
   paymentRef      String?
   /// Bukti bayar yang diunggah pelanggan QR (screenshot QRIS/transfer).
   paymentProofUrl String?
-  /// Pelanggan QR memilih bayar di kasir (bila mode QRIS_OR_CASHIER).
+  /// Pelanggan QR memilih bayar tunai di kasir (metode bertipe CASH).
   payAtCashier    Boolean @default(false)
+  /// Kode unik 1–99 yang ditambahkan ke nominal QRIS pelanggan, agar mudah dicocokkan di notifikasi e-wallet.
+  uniqueCode      Int?
   reason          String? // alasan reject / void / batal
 
   createdById   String? // null = dibuat pelanggan lewat QR

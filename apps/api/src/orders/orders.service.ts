@@ -24,6 +24,7 @@ import type {
 import { orderDetailInclude, orderInclude, toOrderEvent, toOrderView } from './order-mapper';
 import { nextOrderNo } from './order-number';
 import {
+  assertCustomerOrderUnchanged,
   pcsByProduct,
   type PricedItem,
   type PricedVariant,
@@ -209,6 +210,9 @@ export class OrdersService {
           throw new BadRequestException('Tanggal kirim tidak boleh sebelum hari ini');
         data.deliveryDate = dateOnly(dto.deliveryDate);
       }
+      if (dto.items && order.source === 'QR_TABLE') {
+        throw new BadRequestException('Isi pesanan pelanggan QR tidak bisa diubah');
+      }
       if (dto.items) {
         const { items, subtotal } = priceItems(dto.items, await this.loadVariants(tx, dto.items), {
           customerFacing: order.source === 'QR_TABLE',
@@ -265,6 +269,21 @@ export class OrdersService {
   }
 
   async approveInTx(tx: Tx, id: string, dto: ApproveOrderDto, userId: string) {
+    const current = await tx.order.findUniqueOrThrow({
+      where: { id },
+      select: {
+        source: true,
+        paymentMethodId: true,
+        uniqueCode: true,
+        items: { select: { id: true, qty: true } },
+      },
+    });
+    assertCustomerOrderUnchanged(
+      current.source,
+      new Map(current.items.map((i) => [i.id, i.qty])),
+      dto,
+    );
+
     // 1. Koreksi qty oleh admin (0 = hapus item).
     for (const change of dto.items ?? []) {
       const item = await tx.orderItem.findFirst({ where: { id: change.id, orderId: id } });
@@ -295,9 +314,16 @@ export class OrdersService {
     const discount = dto.discount ?? 0;
     if (discount > subtotal) throw new BadRequestException('Diskon melebihi subtotal');
     const total = subtotal - discount;
-    const method = await tx.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
+    // Order pelanggan QR: default cara bayar yang dipilih pelanggan.
+    const methodId = dto.paymentMethodId ?? current.paymentMethodId;
+    if (!methodId) throw new BadRequestException('Pilih metode bayar');
+    const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
     const payment = settlePayment(total, method.type, dto.paidAmount);
+    // QRIS pelanggan dibayar dengan kode unik: uang yang masuk = total + kode.
+    if (method.type === 'QRIS' && current.uniqueCode && methodId === current.paymentMethodId) {
+      payment.paidAmount = total + current.uniqueCode;
+    }
     // Uang cash masuk laci → wajib ada shift kasir terbuka (PRD 5.14).
     let cashSessionId: string | null = null;
     if (method.type === 'CASH') {
@@ -402,7 +428,16 @@ export class OrdersService {
       try {
         await this.prisma.$transaction(async (tx) => {
           const locked = await this.lockPending(tx, id, user);
-          await this.approveInTx(tx, id, { paymentMethodId, paidAmount: locked.total }, user.sub);
+          // Order pelanggan QR memakai cara bayar pilihannya sendiri.
+          await this.approveInTx(
+            tx,
+            id,
+            {
+              paymentMethodId: locked.paymentMethodId ?? paymentMethodId,
+              paidAmount: locked.total,
+            },
+            user.sub,
+          );
         });
         const view = await this.afterWrite(id, user, 'order.updated');
         results.push({ id, orderNo: view.orderNo, ok: true, message: null, total: view.total });

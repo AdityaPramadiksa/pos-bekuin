@@ -32,9 +32,18 @@ export function OrderCard({
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-semibold">{order.customerName ?? order.orderNo}</span>
             <SourceBadge order={order} />
-            {order.payAtCashier && order.status === 'PENDING' && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-                Bayar di kasir
+            {/* Cara bayar pilihan pelanggan QR (belum lunas). */}
+            {order.status === 'PENDING' && order.paymentMethod && (
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                  order.paymentMethod.type === 'CASH'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-sky-100 text-sky-800',
+                )}
+              >
+                {order.paymentMethod.name}
+                {order.uniqueCode ? ` ${formatRupiah(order.total + order.uniqueCode)}` : ''}
               </span>
             )}
             {order.paymentProofUrl && order.status === 'PENDING' && (

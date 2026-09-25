@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   isWithinOpeningHours,
+  qrisWithAmount,
   type OpeningHours,
   type PublicMenuResponse,
   type PublicOrderCreated,
@@ -19,9 +20,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import type { CreatePublicOrderDto } from './dto/public-order.dto';
+import { pickUniqueCode } from './unique-code';
 
 export const MAX_PENDING_PER_TABLE = 3;
 export const QR_ORDER_ATTEMPTS_PER_10_MIN = 10;
+/** Kunci advisory saat memilih kode unik QRIS agar dua order tidak mendapat nominal sama. */
+const UNIQUE_CODE_LOCK = 7_240_002;
 
 function storeStatus(s: Setting | null): { isOpen: boolean; closedReason: string | null } {
   if (!s) return { isOpen: true, closedReason: null };
@@ -47,6 +51,15 @@ export class PublicService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
+  /** Metode bayar yang aktif & ditandai "Tampil di QR pelanggan". */
+  private customerPaymentMethods() {
+    return this.prisma.paymentMethod.findMany({
+      where: { isActive: true, showToCustomer: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      select: { id: true, name: true, type: true },
+    });
+  }
+
   private async findTable(qrToken: string): Promise<DiningTable> {
     const table = await this.prisma.diningTable.findUnique({ where: { qrToken } });
     if (!table?.isActive) throw new NotFoundException('QR tidak valid. Silakan hubungi kasir.');
@@ -54,7 +67,7 @@ export class PublicService {
   }
 
   async menu(qrToken: string): Promise<PublicMenuResponse> {
-    const [table, settings, catalog, categories] = await Promise.all([
+    const [table, settings, catalog, categories, paymentMethods] = await Promise.all([
       this.findTable(qrToken),
       this.prisma.setting.findUnique({ where: { id: 'default' } }),
       this.catalog.get(),
@@ -63,6 +76,7 @@ export class PublicService {
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
         select: { id: true, code: true, name: true },
       }),
+      this.customerPaymentMethods(),
     ]);
     const visible = new Set(categories.map((c) => c.id));
     return {
@@ -74,7 +88,7 @@ export class PublicService {
         openingHours: (settings?.openingHours as OpeningHours | null) ?? null,
       },
       table: { code: table.code, name: table.name, isTakeaway: table.code === 'TAKEAWAY' },
-      qrPaymentMode: settings?.qrPaymentMode ?? 'QRIS_ONLY',
+      paymentMethods,
       maxOrderTotal: settings?.qrMaxOrderTotal ?? 1_000_000,
       categories,
       products: catalog.products
@@ -103,9 +117,8 @@ export class PublicService {
     const settings = await this.prisma.setting.findUnique({ where: { id: 'default' } });
     const status = storeStatus(settings);
     if (!status.isOpen) throw new ForbiddenException(status.closedReason);
-    if (dto.payAtCashier && settings?.qrPaymentMode !== 'QRIS_OR_CASHIER') {
-      throw new BadRequestException('Pembayaran untuk pesanan meja wajib lewat QRIS');
-    }
+    const method = (await this.customerPaymentMethods()).find((m) => m.id === dto.paymentMethodId);
+    if (!method) throw new BadRequestException('Cara bayar ini tidak tersedia. Pilih yang lain.');
 
     const orderId = await this.prisma.$transaction(async (tx) => {
       // Kunci baris meja agar hitungan PENDING per meja tidak balapan.
@@ -134,7 +147,23 @@ export class PublicService {
           `Total pesanan melebihi batas Rp${max.toLocaleString('id-ID')}. Silakan pesan di kasir.`,
         );
       }
-      if (dto.payAtCashier) await tx.order.update({ where: { id }, data: { payAtCashier: true } });
+      // Cara bayar pilihan pelanggan disimpan; admin tinggal approve (PRD 5.5).
+      let uniqueCode: number | null = null;
+      if (method.type === 'QRIS') {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${UNIQUE_CODE_LOCK})`;
+        const others = await tx.order.findMany({
+          where: { status: 'PENDING', uniqueCode: { not: null } },
+          select: { total: true, uniqueCode: true },
+        });
+        uniqueCode = pickUniqueCode(
+          order.total,
+          new Set(others.map((o) => o.total + (o.uniqueCode ?? 0))),
+        );
+      }
+      await tx.order.update({
+        where: { id },
+        data: { paymentMethodId: method.id, payAtCashier: method.type === 'CASH', uniqueCode },
+      });
       return id;
     });
 
@@ -144,11 +173,27 @@ export class PublicService {
 
   async getOrder(publicToken: string): Promise<PublicOrderView> {
     const [order, settings] = await Promise.all([
-      this.prisma.order.findUnique({ where: { publicToken }, include: orderInclude }),
+      this.prisma.order.findUnique({
+        where: { publicToken },
+        include: {
+          ...orderInclude,
+          paymentMethod: { select: { name: true, type: true, accountInfo: true } },
+        },
+      }),
       this.prisma.setting.findUnique({ where: { id: 'default' } }),
     ]);
     if (!order) throw new NotFoundException('Pesanan tidak ditemukan');
     const pending = order.status === 'PENDING';
+    const type = order.paymentMethod?.type ?? null;
+    const amount = order.total + (type === 'QRIS' ? (order.uniqueCode ?? 0) : 0);
+    let qrisPayload: string | null = null;
+    if (pending && type === 'QRIS' && settings?.qrisPayload) {
+      try {
+        qrisPayload = qrisWithAmount(settings.qrisPayload, amount);
+      } catch {
+        qrisPayload = null; // teks QRIS toko rusak → pelanggan memakai gambar QRIS statis
+      }
+    }
     return {
       orderNo: order.orderNo,
       publicToken: order.publicToken,
@@ -182,7 +227,15 @@ export class PublicService {
         phone: settings?.phone ?? null,
       },
       canCancel: pending && !order.paymentProofUrl && order.source === 'QR_TABLE',
-      canUploadProof: pending && !order.payAtCashier && order.source === 'QR_TABLE',
+      payment: {
+        methodName: order.paymentMethod?.name ?? null,
+        type,
+        amount,
+        uniqueCode: type === 'QRIS' ? order.uniqueCode : null,
+        qrisPayload,
+        accountInfo: type === 'TRANSFER' ? (order.paymentMethod?.accountInfo ?? null) : null,
+      },
+      canUploadProof: pending && type !== 'CASH' && order.source === 'QR_TABLE',
     };
   }
 

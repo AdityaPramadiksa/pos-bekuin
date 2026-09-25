@@ -52,6 +52,8 @@ export interface OrderView {
   paymentRef: string | null;
   paymentProofUrl: string | null;
   payAtCashier: boolean;
+  /** Kode unik QRIS (order pelanggan); nominal masuk = total + kode unik. */
+  uniqueCode: number | null;
   reason: string | null;
   createdBy: { id: string; name: string } | null;
   approvedBy: { id: string; name: string } | null;

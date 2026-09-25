@@ -1,6 +1,7 @@
 import {
   formatRupiah,
   isWithinOpeningHours,
+  qrisInfo,
   type OpeningHours,
   type SettingsView,
   WEEKDAY_LABEL,
@@ -9,15 +10,17 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ImageUpload } from '@/components/ImageUpload';
 import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Field, Input, MoneyInput, Select, Textarea } from '@/components/ui/input';
+import { Field, Input, MoneyInput, Textarea } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { Switch, SwitchRow } from '@/components/ui/switch';
-import { api, errorMessage } from '@/lib/api';
+import { api, assetUrl, errorMessage } from '@/lib/api';
+import { decodeQrFromUrl } from '@/lib/qr-decode';
 import { queryKeys, useSettings } from '@/lib/queries';
 
 export function SettingsPage() {
@@ -145,19 +148,15 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
 
       <Section
         title="QRIS Toko"
-        description="Gambar QRIS statis dari aplikasi merchant (GoPay/DANA/bank). Ditampilkan ke pelanggan saat bayar."
+        description="Unggah gambar QRIS statis dari aplikasi merchant (DANA/GoPay/bank). Isi QR-nya dibaca otomatis supaya pelanggan mendapat QR yang nominalnya sudah terisi."
       >
-        <ImageUpload
-          purpose="qris"
-          aspect="portrait"
-          value={form.qrisImageUrl}
-          onChange={(v) => set('qrisImageUrl', v)}
+        <QrisSetting
+          imageUrl={form.qrisImageUrl}
+          payload={form.qrisPayload}
+          onChange={(qrisImageUrl, qrisPayload) =>
+            setForm((f) => ({ ...f, qrisImageUrl, qrisPayload }))
+          }
         />
-        {!form.qrisImageUrl && (
-          <p className="text-xs text-amber-700">
-            Belum ada gambar QRIS — pembayaran QRIS belum bisa ditampilkan.
-          </p>
-        )}
       </Section>
 
       <Section title="Jam Operasional">
@@ -237,15 +236,13 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
           checked={form.qrOrderingEnabled}
           onChange={(v) => set('qrOrderingEnabled', v)}
         />
-        <Field label="Cara bayar pelanggan QR">
-          <Select
-            value={form.qrPaymentMode}
-            onChange={(e) => set('qrPaymentMode', e.target.value as SettingsView['qrPaymentMode'])}
-          >
-            <option value="QRIS_ONLY">Wajib bayar QRIS dari HP</option>
-            <option value="QRIS_OR_CASHIER">QRIS atau bayar di kasir</option>
-          </Select>
-        </Field>
+        <p className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
+          Pilihan cara bayar pelanggan (QRIS, Cash, Transfer) diatur di{' '}
+          <Link to="/admin/lainnya/metode-bayar" className="text-brand-700 font-semibold">
+            Metode Bayar
+          </Link>{' '}
+          → &quot;Tampil di QR pelanggan&quot;.
+        </p>
         <Field
           label="Batas total per order"
           hint={`Order QR di atas ${formatRupiah(form.qrMaxOrderTotal || 0)} ditolak (mencegah iseng)`}
@@ -281,6 +278,86 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Gambar QRIS + hasil bacanya (nama toko & NMID) untuk QR bernominal per order. */
+function QrisSetting({
+  imageUrl,
+  payload,
+  onChange,
+}: {
+  imageUrl: string | null;
+  payload: string | null;
+  onChange: (imageUrl: string | null, payload: string | null) => void;
+}) {
+  const [reading, setReading] = useState(false);
+  let info: ReturnType<typeof qrisInfo> | null = null;
+  try {
+    info = payload ? qrisInfo(payload) : null;
+  } catch {
+    info = null;
+  }
+
+  async function read(url: string) {
+    setReading(true);
+    try {
+      const text = await decodeQrFromUrl(assetUrl(url)!);
+      const parsed = text ? qrisInfo(text) : null;
+      if (!text || !parsed) throw new Error('QR tidak terbaca');
+      if (!parsed.isStatic) throw new Error('Ini QRIS bernominal. Unggah QRIS statis toko.');
+      onChange(url, text);
+      toast.success(`QRIS terbaca: ${parsed.merchantName ?? 'toko'}`);
+    } catch (e) {
+      onChange(url, null);
+      toast.error(
+        e instanceof Error && e.message !== 'QR tidak terbaca'
+          ? e.message
+          : 'QR tidak terbaca. Unggah gambar QRIS yang lebih jelas (tanpa terpotong).',
+      );
+    } finally {
+      setReading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <ImageUpload
+        purpose="qris"
+        aspect="portrait"
+        value={imageUrl}
+        onChange={(url) => (url ? void read(url) : onChange(null, null))}
+      />
+      {reading ? (
+        <p className="text-sm text-stone-500">Membaca kode QR…</p>
+      ) : info ? (
+        <div className="rounded-xl bg-green-50 p-3 text-sm text-green-900">
+          <p className="font-semibold">QR bernominal otomatis aktif</p>
+          <p>
+            {info.merchantName}
+            {info.nmid ? ` · ${info.nmid}` : ''}
+          </p>
+          <p className="text-xs">
+            Pelanggan yang pilih QRIS mendapat QR dengan nominal + kode unik, uang tetap masuk ke
+            QRIS ini.
+          </p>
+        </div>
+      ) : imageUrl ? (
+        <div className="space-y-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          <p>
+            QR belum terbaca, jadi pelanggan harus mengetik nominal sendiri. Coba baca ulang atau
+            unggah gambar yang lebih jelas.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void read(imageUrl)}>
+            Baca ulang QR
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-amber-700">
+          Belum ada gambar QRIS, jadi pembayaran QRIS belum bisa ditampilkan.
+        </p>
+      )}
     </div>
   );
 }

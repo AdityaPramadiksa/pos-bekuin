@@ -1,8 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { QrPaymentMode } from '@prisma/client';
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
   IsObject,
   IsOptional,
@@ -30,6 +28,13 @@ export class UpdateSettingsDto {
   @Matches(UPLOAD_URL, { message: 'URL gambar QRIS tidak valid' })
   qrisImageUrl?: string | null;
 
+  @ApiPropertyOptional({ description: 'Teks QRIS statis (hasil baca gambar QRIS toko)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(512)
+  qrisPayload?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -45,10 +50,6 @@ export class UpdateSettingsDto {
   openingHours?: Record<string, [string, string] | null> | null;
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() qrOrderingEnabled?: boolean;
-  @ApiPropertyOptional({ enum: QrPaymentMode })
-  @IsOptional()
-  @IsEnum(QrPaymentMode)
-  qrPaymentMode?: QrPaymentMode;
 
   @ApiPropertyOptional()
   @IsOptional()

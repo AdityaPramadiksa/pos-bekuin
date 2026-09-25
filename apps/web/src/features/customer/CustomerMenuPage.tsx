@@ -12,6 +12,8 @@ import { assetUrl, errorMessage, publicApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { cartTotals, getCartStore } from '@/stores/cart';
 import { loadMyOrders, saveMyOrder } from './my-orders';
+import { sortCustomerMethods } from './payment-methods';
+import { PaymentChoice } from './PaymentChoice';
 
 export function CustomerMenuPage() {
   const { qrToken = '' } = useParams();
@@ -46,7 +48,10 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
   const { lines, meta, add, setQty, setMeta, clear } = useCart();
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [payAtCashier, setPayAtCashier] = useState(false);
+  // Cara bayar: bawaan QRIS bila tersedia.
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(
+    () => sortCustomerMethods(data.paymentMethods)[0]?.id ?? null,
+  );
   // QR meja: bawaan makan di tempat.
   const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY'>('DINE_IN');
   const myOrders = loadMyOrders().filter((o) => o.qrToken === qrToken);
@@ -69,7 +74,7 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
           customerPhone: meta.customerPhone.trim() || null,
           type: data.table.isTakeaway ? 'TAKEAWAY' : orderType,
           note: meta.note.trim() || null,
-          payAtCashier: data.qrPaymentMode === 'QRIS_OR_CASHIER' ? payAtCashier : undefined,
+          paymentMethodId,
         })
       ).data,
     onSuccess: (created) => {
@@ -301,32 +306,12 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
           </Field>
 
           <div>
-            <p className="mb-2 text-sm font-medium">Pembayaran</p>
-            {data.qrPaymentMode === 'QRIS_OR_CASHIER' ? (
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: false, label: 'QRIS sekarang' },
-                  { value: true, label: 'Bayar di kasir' },
-                ].map((o) => (
-                  <button
-                    key={o.label}
-                    onClick={() => setPayAtCashier(o.value)}
-                    className={cn(
-                      'rounded-xl border px-3 py-3 text-sm font-semibold',
-                      payAtCashier === o.value
-                        ? 'border-brand-700 bg-brand-50 text-brand-700'
-                        : 'border-stone-300',
-                    )}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl bg-stone-100 px-3 py-2 text-sm">
-                QRIS — scan & bayar dari HP setelah pesan (GoPay, OVO, DANA, m-banking).
-              </p>
-            )}
+            <p className="mb-2 text-sm font-medium">Cara bayar</p>
+            <PaymentChoice
+              methods={data.paymentMethods}
+              value={paymentMethodId}
+              onChange={setPaymentMethodId}
+            />
           </div>
 
           <div className="flex items-baseline justify-between border-t border-stone-100 pt-3">
@@ -342,7 +327,12 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
           <Button
             size="lg"
             className="w-full"
-            disabled={lines.length === 0 || meta.customerName.trim().length < 2 || overLimit}
+            disabled={
+              lines.length === 0 ||
+              meta.customerName.trim().length < 2 ||
+              overLimit ||
+              !paymentMethodId
+            }
             loading={submit.isPending}
             onClick={() => submit.mutate()}
           >
