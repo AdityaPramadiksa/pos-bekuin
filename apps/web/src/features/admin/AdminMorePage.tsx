@@ -3,6 +3,7 @@ import {
   ChevronRight,
   Cog,
   CreditCard,
+  Link2,
   type LucideIcon,
   Printer,
   QrCode,
@@ -37,6 +38,12 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         description: 'Cash, Transfer, QRIS, e-wallet',
         icon: CreditCard,
         to: '/admin/lainnya/metode-bayar',
+      },
+      {
+        label: 'Link Order Online',
+        description: 'Bagikan link & QR ke WhatsApp/Instagram, atur ongkir',
+        icon: Link2,
+        to: '/admin/lainnya/order-online',
       },
       {
         label: 'Meja & QR',

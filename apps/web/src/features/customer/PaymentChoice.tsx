@@ -19,10 +19,13 @@ export function PaymentChoice({
   methods,
   value,
   onChange,
+  hints,
 }: {
   methods: PublicPaymentMethod[];
   value: string | null;
   onChange: (id: string) => void;
+  /** Keterangan tambahan per tipe (mis. Cash = COD untuk pesanan online). */
+  hints?: Partial<Record<PaymentType, string>>;
 }) {
   if (methods.length === 0) {
     return (
@@ -35,6 +38,7 @@ export function PaymentChoice({
     <div role="radiogroup" aria-label="Cara bayar" className="grid gap-2">
       {sortCustomerMethods(methods).map((m) => {
         const Icon = ICON[m.type];
+        const hint = hints?.[m.type] ?? HINT[m.type];
         const selected = value === m.id;
         return (
           <button
@@ -55,7 +59,7 @@ export function PaymentChoice({
             />
             <span className="min-w-0 flex-1">
               <span className="block font-semibold">{m.name}</span>
-              {HINT[m.type] && <span className="block text-xs text-stone-500">{HINT[m.type]}</span>}
+              {hint && <span className="block text-xs text-stone-500">{hint}</span>}
             </span>
             <span
               className={cn(

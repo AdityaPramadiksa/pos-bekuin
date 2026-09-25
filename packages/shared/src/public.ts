@@ -1,4 +1,10 @@
-import type { FulfillmentStatus, OrderStatus, OrderType, PaymentType } from './enums';
+import type {
+  DeliveryMethod,
+  FulfillmentStatus,
+  OrderStatus,
+  OrderType,
+  PaymentType,
+} from './enums';
 import type { OpeningHours } from './menu';
 
 /** Metode bayar yang boleh dipilih pelanggan saat pesan (diatur di Metode Bayar). */
@@ -18,7 +24,21 @@ export interface PublicMenuResponse {
     closedReason: string | null;
     openingHours: OpeningHours | null;
   };
-  table: { code: string; name: string; isTakeaway: boolean };
+  /** QR meja; null untuk link order online. */
+  table: { code: string; name: string; isTakeaway: boolean } | null;
+  /** Link order online; null untuk QR meja. */
+  online: {
+    /** Toko sedang buka sekarang → boleh pesan untuk hari ini. */
+    acceptingToday: boolean;
+    /** Tanggal paling awal & paling akhir yang bisa dipilih (YYYY-MM-DD, WITA). */
+    earliestDate: string;
+    latestDate: string;
+    deliveryEnabled: boolean;
+    deliveryFee: number;
+    freeDeliveryMin: number;
+    deliveryNote: string | null;
+    pickupAddress: string | null;
+  } | null;
   paymentMethods: PublicPaymentMethod[];
   maxOrderTotal: number;
   categories: { id: string; code: string; name: string }[];
@@ -72,6 +92,14 @@ export interface PublicOrderView {
   readyAt: string | null;
   handedOverAt: string | null;
   store: { name: string; qrisImageUrl: string | null; phone: string | null };
+  /** Pesanan online: cara terima & tanggal. */
+  delivery: {
+    method: DeliveryMethod;
+    address: string | null;
+    fee: number;
+    /** YYYY-MM-DD */
+    date: string;
+  } | null;
   /** Cara bayar pilihan pelanggan & apa yang harus dibayar. */
   payment: {
     methodName: string | null;

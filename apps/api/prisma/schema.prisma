@@ -48,6 +48,13 @@ enum OrderSource {
   ADMIN
   QR_TABLE
   WA_IMPORT
+  ONLINE // pelanggan pesan sendiri lewat link order online toko
+}
+
+/// Cara pesanan online diterima pelanggan.
+enum DeliveryMethod {
+  PICKUP
+  DELIVERY
 }
 
 enum OrderType {
@@ -161,6 +168,16 @@ model Setting {
   openingHours           Json?
   qrOrderingEnabled      Boolean  @default(true)
   qrMaxOrderTotal        Int      @default(1000000)
+  /// Link order online: /pesan/<onlineOrderToken> (bisa diganti bila disalahgunakan).
+  onlineOrderToken       String?  @unique
+  onlineOrderingEnabled  Boolean  @default(true)
+  deliveryEnabled        Boolean  @default(true)
+  /// Ongkir tetap (rupiah) untuk pesanan online yang diantar.
+  deliveryFee            Int      @default(10000)
+  /// Gratis ongkir bila subtotal ≥ nilai ini; 0 = tidak ada gratis ongkir.
+  freeDeliveryMin        Int      @default(0)
+  /// Info area/jam antar untuk pelanggan, misal "Antar area Denpasar, jam 10–17".
+  deliveryNote           String?
   blockApproveOnLowStock Boolean  @default(true)
   paperWidthChars        Int      @default(32)
   updatedAt              DateTime @updatedAt
@@ -383,9 +400,9 @@ model Order {
   note          String?
 
   subtotal        Int
-  discount        Int     @default(0)
+  discount        Int             @default(0)
   total           Int
-  hppTotal        Int     @default(0)
+  hppTotal        Int             @default(0)
   paymentMethodId String?
   paidAmount      Int?
   changeAmount    Int?
@@ -393,9 +410,13 @@ model Order {
   /// Bukti bayar yang diunggah pelanggan QR (screenshot QRIS/transfer).
   paymentProofUrl String?
   /// Pelanggan QR memilih bayar tunai di kasir (metode bertipe CASH).
-  payAtCashier    Boolean @default(false)
+  payAtCashier    Boolean         @default(false)
   /// Kode unik 1–99 yang ditambahkan ke nominal QRIS pelanggan, agar mudah dicocokkan di notifikasi e-wallet.
   uniqueCode      Int?
+  /// Pesanan online: ambil sendiri / diantar, alamat, dan ongkir (sudah termasuk di total).
+  deliveryMethod  DeliveryMethod?
+  deliveryAddress String?
+  deliveryFee     Int             @default(0)
   reason          String? // alasan reject / void / batal
 
   createdById   String? // null = dibuat pelanggan lewat QR

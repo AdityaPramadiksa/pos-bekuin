@@ -62,6 +62,13 @@ export function receiptLines(
   }
   if (order.type === 'PREORDER') lines.push(field('Kirim', formatDateKey(order.deliveryDate)));
   if (order.source === 'QR_TABLE') lines.push(field('Sumber', 'QR Meja'));
+  if (order.deliveryMethod === 'DELIVERY') {
+    lines.push(field('Antar', formatDateKey(order.deliveryDate)));
+    if (order.deliveryAddress) lines.push({ kind: 'text', text: order.deliveryAddress });
+    if (order.customerPhone) lines.push(field('WA', order.customerPhone));
+  } else if (order.deliveryMethod === 'PICKUP' && order.type !== 'PREORDER') {
+    lines.push(field('Ambil', formatDateKey(order.deliveryDate)));
+  }
   lines.push({ kind: 'divider' });
 
   const groups = new Map<string, OrderView['items']>();
@@ -83,6 +90,8 @@ export function receiptLines(
   lines.push({ kind: 'pair', left: 'Subtotal', right: formatNumber(order.subtotal) });
   if (order.discount)
     lines.push({ kind: 'pair', left: 'Diskon', right: `-${formatNumber(order.discount)}` });
+  if (order.deliveryFee)
+    lines.push({ kind: 'pair', left: 'Ongkir', right: formatNumber(order.deliveryFee) });
   lines.push({
     kind: 'pair',
     left: 'TOTAL',

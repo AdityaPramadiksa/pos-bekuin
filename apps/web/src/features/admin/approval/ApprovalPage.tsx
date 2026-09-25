@@ -48,6 +48,7 @@ export function ApprovalPage() {
             { key: '', label: 'Semua', count: all.data?.total },
             { key: 'POS', label: 'POS', count: count('POS') },
             { key: 'QR_TABLE', label: 'QR Meja', count: count('QR_TABLE') },
+            { key: 'ONLINE', label: 'Online', count: count('ONLINE') },
             { key: 'WA_IMPORT', label: 'WhatsApp', count: count('WA_IMPORT') },
             { key: 'ADMIN', label: 'Admin', count: count('ADMIN') },
           ]}

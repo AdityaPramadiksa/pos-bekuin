@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
@@ -20,5 +20,13 @@ export class SettingsController {
   @Patch()
   update(@Body() dto: UpdateSettingsDto) {
     return this.settings.update(dto);
+  }
+
+  /** Ganti link order online (bila disebar ke tempat yang salah / disalahgunakan). */
+  @Roles('ADMIN')
+  @Post('online-link/rotate')
+  @HttpCode(200)
+  rotateOnlineLink() {
+    return this.settings.rotateOnlineLink();
   }
 }

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  calcDeliveryFee,
   isWithinOpeningHours,
   qrisWithAmount,
   type OpeningHours,
@@ -12,14 +13,17 @@ import {
   type PublicOrderCreated,
   type PublicOrderView,
 } from '@bekuin/shared';
-import type { DiningTable, Setting } from '@prisma/client';
+import type { DiningTable, PaymentType, Prisma, Setting } from '@prisma/client';
+import { todayKey } from '../common/dates';
 import { CatalogService } from '../menu/catalog.service';
 import { orderInclude } from '../orders/order-mapper';
+import { isCustomerSource } from '../orders/order-pricing';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
-import type { CreatePublicOrderDto } from './dto/public-order.dto';
+import type { CreateOnlineOrderDto, CreatePublicOrderDto } from './dto/public-order.dto';
+import { MAX_PENDING_PER_PHONE, normalizePhone, onlineDateWindow } from './online-order';
 import { pickUniqueCode } from './unique-code';
 
 export const MAX_PENDING_PER_TABLE = 3;
@@ -67,9 +71,62 @@ export class PublicService {
   }
 
   async menu(qrToken: string): Promise<PublicMenuResponse> {
-    const [table, settings, catalog, categories, paymentMethods] = await Promise.all([
+    const [table, settings, base] = await Promise.all([
       this.findTable(qrToken),
       this.prisma.setting.findUnique({ where: { id: 'default' } }),
+      this.menuBase(),
+    ]);
+    return {
+      store: {
+        name: settings?.storeName ?? 'Bekuin',
+        tagline: settings?.tagline ?? null,
+        logoUrl: settings?.logoUrl ?? null,
+        ...storeStatus(settings),
+        openingHours: (settings?.openingHours as OpeningHours | null) ?? null,
+      },
+      table: { code: table.code, name: table.name, isTakeaway: table.code === 'TAKEAWAY' },
+      online: null,
+      maxOrderTotal: settings?.qrMaxOrderTotal ?? 1_000_000,
+      ...base,
+    };
+  }
+
+  /** Menu untuk link order online: selalu bisa pre-order, hari ini hanya saat toko buka. */
+  async onlineMenu(onlineToken: string): Promise<PublicMenuResponse> {
+    const [settings, base] = await Promise.all([this.onlineSettings(onlineToken), this.menuBase()]);
+    const hours = (settings.openingHours as OpeningHours | null) ?? null;
+    const openNow = settings.isStoreOpen && isWithinOpeningHours(hours);
+    return {
+      store: {
+        name: settings.storeName,
+        tagline: settings.tagline,
+        logoUrl: settings.logoUrl,
+        isOpen: settings.onlineOrderingEnabled,
+        closedReason: settings.onlineOrderingEnabled
+          ? null
+          : 'Order online sedang tidak tersedia. Silakan hubungi kami lewat WhatsApp.',
+        openingHours: hours,
+      },
+      table: null,
+      online: {
+        acceptingToday: openNow,
+        ...onlineDateWindow(todayKey(), openNow),
+        deliveryEnabled: settings.deliveryEnabled,
+        deliveryFee: settings.deliveryFee,
+        freeDeliveryMin: settings.freeDeliveryMin,
+        deliveryNote: settings.deliveryNote,
+        pickupAddress: settings.address,
+      },
+      maxOrderTotal: settings.qrMaxOrderTotal,
+      ...base,
+    };
+  }
+
+  /** Kategori, produk, dan cara bayar yang boleh dilihat pelanggan. */
+  private async menuBase(): Promise<
+    Pick<PublicMenuResponse, 'categories' | 'products' | 'paymentMethods'>
+  > {
+    const [catalog, categories, paymentMethods] = await Promise.all([
       this.catalog.get(),
       this.prisma.salesCategory.findMany({
         where: { isActive: true, isCustomerVisible: true },
@@ -80,16 +137,7 @@ export class PublicService {
     ]);
     const visible = new Set(categories.map((c) => c.id));
     return {
-      store: {
-        name: settings?.storeName ?? 'Bekuin',
-        tagline: settings?.tagline ?? null,
-        logoUrl: settings?.logoUrl ?? null,
-        ...storeStatus(settings),
-        openingHours: (settings?.openingHours as OpeningHours | null) ?? null,
-      },
-      table: { code: table.code, name: table.name, isTakeaway: table.code === 'TAKEAWAY' },
       paymentMethods,
-      maxOrderTotal: settings?.qrMaxOrderTotal ?? 1_000_000,
       categories,
       products: catalog.products
         .map((p) => ({
@@ -147,28 +195,120 @@ export class PublicService {
           `Total pesanan melebihi batas Rp${max.toLocaleString('id-ID')}. Silakan pesan di kasir.`,
         );
       }
-      // Cara bayar pilihan pelanggan disimpan; admin tinggal approve (PRD 5.5).
-      let uniqueCode: number | null = null;
-      if (method.type === 'QRIS') {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${UNIQUE_CODE_LOCK})`;
-        const others = await tx.order.findMany({
-          where: { status: 'PENDING', uniqueCode: { not: null } },
-          select: { total: true, uniqueCode: true },
-        });
-        uniqueCode = pickUniqueCode(
-          order.total,
-          new Set(others.map((o) => o.total + (o.uniqueCode ?? 0))),
-        );
-      }
-      await tx.order.update({
-        where: { id },
-        data: { paymentMethodId: method.id, payAtCashier: method.type === 'CASH', uniqueCode },
-      });
+      await this.assignPayment(tx, id, method, order.total);
       return id;
     });
 
     const order = await this.orders.afterWrite(orderId, null, 'order.created');
     return { orderNo: order.orderNo, publicToken: order.publicToken, total: order.total };
+  }
+
+  /** Pesanan lewat link order online: ambil/antar, tanggal kirim, ongkir tetap. */
+  async createOnlineOrder(dto: CreateOnlineOrderDto): Promise<PublicOrderCreated> {
+    const settings = await this.onlineSettings(dto.onlineToken);
+    if (!settings.onlineOrderingEnabled) {
+      throw new ForbiddenException('Order online sedang tidak tersedia.');
+    }
+    const openNow =
+      settings.isStoreOpen &&
+      isWithinOpeningHours((settings.openingHours as OpeningHours | null) ?? null);
+    const { earliestDate, latestDate } = onlineDateWindow(todayKey(), openNow);
+    if (dto.deliveryDate < earliestDate) {
+      throw new BadRequestException(
+        openNow
+          ? 'Tanggal kirim tidak boleh sebelum hari ini'
+          : 'Toko sedang tutup. Pilih tanggal mulai besok.',
+      );
+    }
+    if (dto.deliveryDate > latestDate) {
+      throw new BadRequestException('Tanggal kirim terlalu jauh, maksimal 14 hari ke depan');
+    }
+    const delivery = dto.deliveryMethod === 'DELIVERY';
+    if (delivery && !settings.deliveryEnabled) {
+      throw new BadRequestException('Layanan antar sedang tidak tersedia, pilih ambil sendiri');
+    }
+    const method = (await this.customerPaymentMethods()).find((m) => m.id === dto.paymentMethodId);
+    if (!method) throw new BadRequestException('Cara bayar ini tidak tersedia. Pilih yang lain.');
+    const phone = normalizePhone(dto.customerPhone);
+
+    const orderId = await this.prisma.$transaction(async (tx) => {
+      // Batas pesanan menunggu per No. WA (pengganti batas per meja), dikunci per nomor.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`online:${phone}`}))`;
+      const pending = await tx.order.count({
+        where: { source: 'ONLINE', status: 'PENDING', customerPhone: phone },
+      });
+      if (pending >= MAX_PENDING_PER_PHONE) {
+        throw new BadRequestException(
+          'Masih ada pesanan kamu yang menunggu konfirmasi. Selesaikan pembayarannya dulu ya.',
+        );
+      }
+      const id = await this.orders.createInTx(tx, {
+        items: dto.items,
+        source: 'ONLINE',
+        deliveryDate: dto.deliveryDate,
+        customerName: dto.customerName,
+        customerPhone: phone,
+        note: dto.note,
+        createdById: null,
+        customerFacing: true,
+      });
+      const order = await tx.order.findUniqueOrThrow({ where: { id } });
+      if (order.subtotal > settings.qrMaxOrderTotal) {
+        throw new BadRequestException(
+          `Total pesanan melebihi batas Rp${settings.qrMaxOrderTotal.toLocaleString('id-ID')}. Silakan hubungi kami lewat WhatsApp.`,
+        );
+      }
+      const deliveryFee = delivery ? calcDeliveryFee(order.subtotal, settings) : 0;
+      const total = order.total + deliveryFee;
+      await tx.order.update({
+        where: { id },
+        data: {
+          deliveryMethod: dto.deliveryMethod,
+          deliveryAddress: delivery ? (dto.deliveryAddress ?? null) : null,
+          deliveryFee,
+          total,
+        },
+      });
+      await this.assignPayment(tx, id, method, total);
+      return id;
+    });
+
+    const order = await this.orders.afterWrite(orderId, null, 'order.created');
+    return { orderNo: order.orderNo, publicToken: order.publicToken, total: order.total };
+  }
+
+  /** Pengaturan toko bila token link online cocok; 404 bila link salah/sudah diganti. */
+  private async onlineSettings(onlineToken: string): Promise<Setting> {
+    const settings = await this.prisma.setting.findUnique({ where: { id: 'default' } });
+    if (!settings?.onlineOrderToken || settings.onlineOrderToken !== onlineToken) {
+      throw new NotFoundException('Link order tidak valid. Minta link terbaru ke toko.');
+    }
+    return settings;
+  }
+
+  /**
+   * Simpan cara bayar pilihan pelanggan; admin tinggal approve (PRD 5.5). QRIS mendapat kode
+   * unik agar nominal (total + kode) tidak sama dengan order QRIS lain yang masih menunggu.
+   */
+  private async assignPayment(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    method: { id: string; type: PaymentType },
+    total: number,
+  ) {
+    let uniqueCode: number | null = null;
+    if (method.type === 'QRIS') {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${UNIQUE_CODE_LOCK})`;
+      const others = await tx.order.findMany({
+        where: { status: 'PENDING', uniqueCode: { not: null } },
+        select: { total: true, uniqueCode: true },
+      });
+      uniqueCode = pickUniqueCode(total, new Set(others.map((o) => o.total + (o.uniqueCode ?? 0))));
+    }
+    await tx.order.update({
+      where: { id: orderId },
+      data: { paymentMethodId: method.id, payAtCashier: method.type === 'CASH', uniqueCode },
+    });
   }
 
   async getOrder(publicToken: string): Promise<PublicOrderView> {
@@ -226,7 +366,15 @@ export class PublicService {
         qrisImageUrl: settings?.qrisImageUrl ?? null,
         phone: settings?.phone ?? null,
       },
-      canCancel: pending && !order.paymentProofUrl && order.source === 'QR_TABLE',
+      delivery: order.deliveryMethod
+        ? {
+            method: order.deliveryMethod,
+            address: order.deliveryAddress,
+            fee: order.deliveryFee,
+            date: order.deliveryDate.toISOString().slice(0, 10),
+          }
+        : null,
+      canCancel: pending && !order.paymentProofUrl && isCustomerSource(order.source),
       payment: {
         methodName: order.paymentMethod?.name ?? null,
         type,
@@ -235,7 +383,7 @@ export class PublicService {
         qrisPayload,
         accountInfo: type === 'TRANSFER' ? (order.paymentMethod?.accountInfo ?? null) : null,
       },
-      canUploadProof: pending && type !== 'CASH' && order.source === 'QR_TABLE',
+      canUploadProof: pending && type !== 'CASH' && isCustomerSource(order.source),
     };
   }
 
@@ -244,7 +392,7 @@ export class PublicService {
     file: Express.Multer.File | undefined,
   ): Promise<PublicOrderView> {
     const order = await this.prisma.order.findUnique({ where: { publicToken } });
-    if (!order || order.source !== 'QR_TABLE')
+    if (!order || !isCustomerSource(order.source))
       throw new NotFoundException('Pesanan tidak ditemukan');
     if (order.status !== 'PENDING') throw new BadRequestException('Pesanan sudah diproses');
     const url = await this.uploads.saveImage(file, 'proof');
@@ -260,7 +408,7 @@ export class PublicService {
 
   async cancel(publicToken: string): Promise<PublicOrderView> {
     const order = await this.prisma.order.findUnique({ where: { publicToken } });
-    if (!order || order.source !== 'QR_TABLE')
+    if (!order || !isCustomerSource(order.source))
       throw new NotFoundException('Pesanan tidak ditemukan');
     await this.prisma.$transaction(async (tx) => {
       const locked = await this.orders.lockPending(tx, order.id, null);

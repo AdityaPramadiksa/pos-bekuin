@@ -16,6 +16,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, MoneyInput } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
 import { ErrorState, LoadingState } from '@/components/ui/states';
+import { DeliveryInfo } from '@/features/orders/DeliveryInfo';
 import { SourceBadge } from '@/features/orders/order-ui';
 import { categoryLabel } from '@/features/orders/order-format';
 import { isPrinterConnected, printReceipt } from '@/features/printer/receipt';
@@ -112,9 +113,10 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
       : discountMode === 'rp'
         ? discountInput
         : Math.round((subtotal * Math.min(discountInput, 100)) / 100);
-  const total = Math.max(0, subtotal - discount);
+  // Ongkir pesanan online ikut ditagih (tidak kena diskon).
+  const total = Math.max(0, subtotal - discount) + order.deliveryFee;
   // Order pelanggan QR sudah final: isi & diskon dikunci, cara bayar dari pilihan pelanggan.
-  const isCustomerOrder = order.source === 'QR_TABLE';
+  const isCustomerOrder = order.source === 'QR_TABLE' || order.source === 'ONLINE';
   const [changingMethod, setChangingMethod] = useState(false);
   const selectedMethodId = methodId ?? order.paymentMethod?.id ?? null;
   const method = methods.data?.find((m) => m.id === selectedMethodId) ?? null;
@@ -280,6 +282,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         <span className="font-medium">{order.customerName ?? 'Tanpa nama'}</span>
         <span className="text-stone-500">· oleh {order.createdBy?.name ?? 'pelanggan'}</span>
       </div>
+      <DeliveryInfo order={order} />
       {order.note && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
           Catatan: {order.note}
@@ -375,6 +378,12 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           <div className="flex justify-between text-stone-600">
             <span>Diskon</span>
             <span>-{formatRupiah(discount)}</span>
+          </div>
+        )}
+        {order.deliveryFee > 0 && (
+          <div className="flex justify-between text-stone-600">
+            <span>Ongkir</span>
+            <span>{formatRupiah(order.deliveryFee)}</span>
           </div>
         )}
         <div className="flex justify-between text-lg font-bold">

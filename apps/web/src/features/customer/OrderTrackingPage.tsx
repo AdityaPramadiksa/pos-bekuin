@@ -6,7 +6,7 @@ import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
-import { categoryLabel, formatTime } from '@/features/orders/order-format';
+import { categoryLabel, formatDateKey, formatTime } from '@/features/orders/order-format';
 import { errorMessage, publicApi } from '@/lib/api';
 import { compressImage } from '@/lib/image';
 import { createSocket } from '@/lib/socket';
@@ -27,7 +27,12 @@ function steps(o: PublicOrderView) {
     },
     { label: 'Sedang disiapkan', done: paid && f !== 'QUEUED', at: null },
     {
-      label: o.type === 'DINE_IN' ? 'Siap diantar ke meja' : 'Siap diambil',
+      label:
+        o.type === 'DINE_IN'
+          ? 'Siap diantar ke meja'
+          : o.delivery?.method === 'DELIVERY'
+            ? 'Siap diantar'
+            : 'Siap diambil',
       done: paid && (f === 'READY' || f === 'HANDED_OVER'),
       at: o.readyAt,
     },
@@ -73,7 +78,12 @@ function headline(o: PublicOrderView): {
   if (o.fulfillmentStatus === 'READY') {
     return {
       title: 'Pesanan siap!',
-      sub: o.type === 'DINE_IN' ? 'Segera diantar ke meja kamu.' : 'Silakan ambil di kasir.',
+      sub:
+        o.type === 'DINE_IN'
+          ? 'Segera diantar ke meja kamu.'
+          : o.delivery?.method === 'DELIVERY'
+            ? 'Pesanan segera diantar ke alamatmu.'
+            : 'Silakan ambil di toko.',
       tone: 'green',
     };
   }
@@ -171,6 +181,13 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
         </p>
         <p className="text-2xl font-bold tracking-wide">{o.orderNo}</p>
         {o.customerName && <p className="text-sm text-stone-600">a.n. {o.customerName}</p>}
+        {o.delivery && (
+          <p className="mt-1 text-sm text-stone-600">
+            {o.delivery.method === 'DELIVERY' ? 'Diantar' : 'Diambil'}{' '}
+            {formatDateKey(o.delivery.date)}
+            {o.delivery.address ? ` ke ${o.delivery.address}` : ''}
+          </p>
+        )}
       </header>
 
       <section className={cn('rounded-2xl p-4 text-center', TONE[h.tone])}>
@@ -230,6 +247,12 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
               <span>-{formatRupiah(o.discount)}</span>
             </li>
           )}
+          {o.delivery && o.delivery.fee > 0 && (
+            <li className="flex justify-between py-2 text-stone-600">
+              <span>Ongkir</span>
+              <span>{formatRupiah(o.delivery.fee)}</span>
+            </li>
+          )}
           <li className="flex justify-between py-2 font-bold">
             <span>Total{o.paymentMethodName ? ` · ${o.paymentMethodName}` : ''}</span>
             <span>{formatRupiah(o.total)}</span>
@@ -239,7 +262,7 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
 
       <div className="space-y-2">
         {mine && (
-          <Link to={`/m/${mine.qrToken}`} className="block">
+          <Link to={mine.menuPath ?? `/m/${mine.qrToken}`} className="block">
             <Button variant="outline" size="lg" className="w-full">
               Pesan lagi
             </Button>

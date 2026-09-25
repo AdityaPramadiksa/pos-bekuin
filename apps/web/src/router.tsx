@@ -7,10 +7,14 @@ export const router = createBrowserRouter([
   { path: '/', element: <HomeRedirect /> },
   { path: '/login', element: lazyPage(() => import('@/features/auth/LoginPage'), 'LoginPage') },
 
-  // ── Publik: pelanggan scan QR meja ──
+  // ── Publik: pelanggan scan QR meja / buka link order online ──
   {
     path: '/m/:qrToken',
     element: lazyPage(() => import('@/features/customer/CustomerMenuPage'), 'CustomerMenuPage'),
+  },
+  {
+    path: '/pesan/:token',
+    element: lazyPage(() => import('@/features/customer/CustomerMenuPage'), 'OnlineOrderPage'),
   },
   {
     path: '/o/:publicToken',
@@ -135,6 +139,13 @@ export const router = createBrowserRouter([
               {
                 path: 'lainnya/pengguna',
                 element: lazyPage(() => import('@/features/admin/users/UsersPage'), 'UsersPage'),
+              },
+              {
+                path: 'lainnya/order-online',
+                element: lazyPage(
+                  () => import('@/features/admin/online/OnlineLinkPage'),
+                  'OnlineLinkPage',
+                ),
               },
               {
                 path: 'lainnya/meja',

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, type Setting } from '@prisma/client';
 import {
@@ -11,6 +12,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { UpdateSettingsDto } from './dto/update-settings.dto';
 
 const SETTINGS_ID = 'default';
+/** Token acak 12 karakter (sama seperti QR meja) untuk link order online. */
+const newToken = () => randomBytes(9).toString('base64url');
 
 function toView(s: Setting): SettingsView {
   return {
@@ -28,6 +31,12 @@ function toView(s: Setting): SettingsView {
     qrMaxOrderTotal: s.qrMaxOrderTotal,
     blockApproveOnLowStock: s.blockApproveOnLowStock,
     paperWidthChars: s.paperWidthChars,
+    onlineOrderToken: s.onlineOrderToken,
+    onlineOrderingEnabled: s.onlineOrderingEnabled,
+    deliveryEnabled: s.deliveryEnabled,
+    deliveryFee: s.deliveryFee,
+    freeDeliveryMin: s.freeDeliveryMin,
+    deliveryNote: s.deliveryNote,
   };
 }
 
@@ -37,10 +46,26 @@ export class SettingsService {
 
   async get(): Promise<SettingsView> {
     // Baris default dibuat otomatis bila seeder belum dijalankan.
-    const s = await this.prisma.setting.upsert({
+    let s = await this.prisma.setting.upsert({
       where: { id: SETTINGS_ID },
       update: {},
-      create: { id: SETTINGS_ID },
+      create: { id: SETTINGS_ID, onlineOrderToken: newToken() },
+    });
+    if (!s.onlineOrderToken) {
+      s = await this.prisma.setting.update({
+        where: { id: SETTINGS_ID },
+        data: { onlineOrderToken: newToken() },
+      });
+    }
+    return toView(s);
+  }
+
+  /** Ganti link order online; link lama langsung tidak berlaku. */
+  async rotateOnlineLink(): Promise<SettingsView> {
+    await this.get();
+    const s = await this.prisma.setting.update({
+      where: { id: SETTINGS_ID },
+      data: { onlineOrderToken: newToken() },
     });
     return toView(s);
   }

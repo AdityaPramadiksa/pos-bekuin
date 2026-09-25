@@ -37,6 +37,12 @@ PENDING → (admin approve QRIS) PAID+QUEUED → PREPARING → READY → HANDED_
 ## QR
 - URL QR: `${PUBLIC_WEB_URL}/m/${qrToken}`. Rotate = token baru, token lama langsung 404.
 
+## Link order online
+- `GET /public/online/:onlineToken/menu` & `POST /public/online-orders`: token = `settings.onlineOrderToken` (acak 12 karakter, bisa di-rotate lewat `POST /settings/online-link/rotate`). Token salah → 404; `onlineOrderingEnabled = false` → 403.
+- Wajib No. WA (dinormalkan `normalizePhone`), `deliveryMethod` PICKUP/DELIVERY (alamat wajib bila DELIVERY), `deliveryDate` dalam `onlineDateWindow` (hari ini hanya saat toko buka, maks. 14 hari).
+- Ongkir `calcDeliveryFee` (shared) disimpan di `orders.deliveryFee` dan masuk `total`; approve menghitung `total = subtotal − diskon + deliveryFee`.
+- Batas 3 PENDING per No. WA (advisory lock per nomor). Sumber `ONLINE` diperlakukan sama dengan `QR_TABLE` (`isCustomerSource`): dikunci saat approval, bisa batal/unggah bukti oleh pelanggan.
+
 ## Pembayaran & approval
 - `GET /public/orders/:publicToken` menyertakan `payment` (tipe, nominal = total + kode unik, `qrisPayload` bernominal dari `settings.qrisPayload` lewat `qrisWithAmount`). Jangan pernah mengirim `order.id`.
 - `settings.qrisPayload` hanya QRIS **statis** dengan CRC valid (`qrisInfo`); web membacanya otomatis dari gambar QRIS yang diunggah.

@@ -11,6 +11,7 @@ import { printReceipt } from '@/features/printer/receipt';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useOrder, useSettings } from '@/lib/queries';
 import { useAuthStore } from '@/stores/auth';
+import { DeliveryInfo } from './DeliveryInfo';
 import { FulfillmentBadge, SourceBadge, StatusBadge } from './order-ui';
 import { categoryLabel, formatDateKey, formatDateTime } from './order-format';
 
@@ -116,6 +117,7 @@ export function OrderDetailDialog({
               {o.status === 'PAID' && <FulfillmentBadge status={o.fulfillmentStatus} />}
               <span className="text-xs text-stone-500">{ORDER_TYPE_LABEL[o.type]}</span>
             </div>
+            <DeliveryInfo order={o} />
 
             <dl className="grid grid-cols-[7rem_1fr] gap-y-1">
               <dt className="text-stone-500">Pelanggan</dt>

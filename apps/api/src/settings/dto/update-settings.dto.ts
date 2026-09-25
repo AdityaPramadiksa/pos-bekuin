@@ -58,6 +58,33 @@ export class UpdateSettingsDto {
   @Max(100_000_000)
   qrMaxOrderTotal?: number;
 
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() onlineOrderingEnabled?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() deliveryEnabled?: boolean;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Ongkir tetap (rupiah)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  deliveryFee?: number;
+
+  @ApiPropertyOptional({
+    example: 100000,
+    description: 'Gratis ongkir mulai subtotal ini; 0 = tidak ada',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  freeDeliveryMin?: number;
+
+  @ApiPropertyOptional({ example: 'Antar area Denpasar, jam 10.00–17.00' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(150)
+  deliveryNote?: string | null;
+
   @ApiPropertyOptional() @IsOptional() @IsBoolean() blockApproveOnLowStock?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(24) @Max(48) paperWidthChars?: number;
 }

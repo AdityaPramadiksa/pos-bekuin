@@ -65,7 +65,11 @@ export function invoiceText(order: OrderView, storeName: string): string {
     `Pesanan ${storeName} untuk ${formatDateKey(order.deliveryDate)}:`,
     ...lines,
     ...(order.discount ? [`Diskon -${formatRupiah(order.discount)}`] : []),
+    ...(order.deliveryFee ? [`Ongkir ${formatRupiah(order.deliveryFee)}`] : []),
     `*Total ${formatRupiah(order.total)}*`,
+    ...(order.deliveryMethod === 'DELIVERY' && order.deliveryAddress
+      ? [`Diantar ke: ${order.deliveryAddress}`]
+      : []),
     order.status === 'PAID' ? 'Status: LUNAS ✅ Terima kasih!' : 'Terima kasih 🙏',
   ].join('\n');
 }
@@ -94,6 +98,13 @@ export function labelBytes(order: OrderView, storeName: string): Uint8Array {
     .bold(true)
     .line(hasMatang && hasFrozen ? 'FROZEN + MATANG' : hasMatang ? 'MATANG' : 'FROZEN')
     .bold(false);
+  if (order.deliveryMethod === 'DELIVERY') {
+    b.align('left').line('ANTAR:');
+    for (let i = 0; i < (order.deliveryAddress ?? '').length && i < 96; i += 32)
+      b.line((order.deliveryAddress ?? '').slice(i, i + 32));
+    if (order.customerPhone) b.line(`WA ${order.customerPhone}`);
+    b.align('center');
+  }
   b.line(order.orderNo).feed(3);
   return b.build();
 }

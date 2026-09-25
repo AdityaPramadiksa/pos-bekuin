@@ -120,6 +120,13 @@ export interface SettingsView {
   openingHours: OpeningHours | null;
   qrOrderingEnabled: boolean;
   qrMaxOrderTotal: number;
+  /** Token link order online (/pesan/<token>). */
+  onlineOrderToken: string | null;
+  onlineOrderingEnabled: boolean;
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  freeDeliveryMin: number;
+  deliveryNote: string | null;
   blockApproveOnLowStock: boolean;
   paperWidthChars: number;
 }

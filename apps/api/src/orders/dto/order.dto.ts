@@ -148,7 +148,7 @@ export class ListOrdersDto {
   @IsOptional()
   @IsString()
   status?: string;
-  @ApiPropertyOptional({ description: 'POS,ADMIN,QR_TABLE,WA_IMPORT' })
+  @ApiPropertyOptional({ description: 'POS,ADMIN,QR_TABLE,WA_IMPORT,ONLINE' })
   @IsOptional()
   @IsString()
   source?: string;

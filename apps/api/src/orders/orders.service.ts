@@ -25,6 +25,7 @@ import { orderDetailInclude, orderInclude, toOrderEvent, toOrderView } from './o
 import { nextOrderNo } from './order-number';
 import {
   assertCustomerOrderUnchanged,
+  isCustomerSource,
   pcsByProduct,
   type PricedItem,
   type PricedVariant,
@@ -210,12 +211,12 @@ export class OrdersService {
           throw new BadRequestException('Tanggal kirim tidak boleh sebelum hari ini');
         data.deliveryDate = dateOnly(dto.deliveryDate);
       }
-      if (dto.items && order.source === 'QR_TABLE') {
-        throw new BadRequestException('Isi pesanan pelanggan QR tidak bisa diubah');
+      if (dto.items && isCustomerSource(order.source)) {
+        throw new BadRequestException('Isi pesanan pelanggan tidak bisa diubah');
       }
       if (dto.items) {
         const { items, subtotal } = priceItems(dto.items, await this.loadVariants(tx, dto.items), {
-          customerFacing: order.source === 'QR_TABLE',
+          customerFacing: isCustomerSource(order.source),
         });
         if (deliveryKey === todayKey()) await this.assertAvailable(tx, items, id);
         await tx.orderItem.deleteMany({ where: { orderId: id } });
@@ -224,7 +225,7 @@ export class OrdersService {
         });
         data.subtotal = subtotal;
         data.discount = 0;
-        data.total = subtotal;
+        data.total = subtotal + order.deliveryFee;
       }
       await tx.order.update({ where: { id }, data });
       await tx.orderLog.create({ data: { orderId: id, action: 'EDITED', userId: user.sub } });
@@ -275,6 +276,7 @@ export class OrdersService {
         source: true,
         paymentMethodId: true,
         uniqueCode: true,
+        deliveryFee: true,
         items: { select: { id: true, qty: true } },
       },
     });
@@ -313,7 +315,8 @@ export class OrdersService {
     const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
     const discount = dto.discount ?? 0;
     if (discount > subtotal) throw new BadRequestException('Diskon melebihi subtotal');
-    const total = subtotal - discount;
+    // Ongkir pesanan online ikut ditagih (tidak kena diskon).
+    const total = subtotal - discount + current.deliveryFee;
     // Order pelanggan QR: default cara bayar yang dipilih pelanggan.
     const methodId = dto.paymentMethodId ?? current.paymentMethodId;
     if (!methodId) throw new BadRequestException('Pilih metode bayar');

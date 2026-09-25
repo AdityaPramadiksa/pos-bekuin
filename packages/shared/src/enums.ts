@@ -18,8 +18,18 @@ export const OrderSource = {
   ADMIN: 'ADMIN', // admin jualan langsung
   QR_TABLE: 'QR_TABLE', // pelanggan scan QR di meja
   WA_IMPORT: 'WA_IMPORT', // tempel pesan WhatsApp
+  ONLINE: 'ONLINE', // pelanggan pesan sendiri lewat link order online
 } as const;
 export type OrderSource = (typeof OrderSource)[keyof typeof OrderSource];
+
+/** Pesanan online: ambil sendiri atau diantar. */
+export const DeliveryMethod = { PICKUP: 'PICKUP', DELIVERY: 'DELIVERY' } as const;
+export type DeliveryMethod = (typeof DeliveryMethod)[keyof typeof DeliveryMethod];
+
+export const DELIVERY_METHOD_LABEL: Record<DeliveryMethod, string> = {
+  PICKUP: 'Ambil sendiri',
+  DELIVERY: 'Diantar',
+};
 
 export const OrderType = {
   DINE_IN: 'DINE_IN',

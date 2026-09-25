@@ -2,7 +2,10 @@
 export interface MyOrder {
   publicToken: string;
   orderNo: string;
-  qrToken: string;
+  /** Token QR meja (riwayat lama); pesanan baru memakai menuPath. */
+  qrToken?: string;
+  /** Halaman menu asal untuk tombol "Pesan lagi": /m/<qrToken> atau /pesan/<token>. */
+  menuPath?: string;
   tableName: string;
   createdAt: string;
 }

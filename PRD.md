@@ -309,6 +309,17 @@ sequenceDiagram
 
 **Fase berikutnya:** QRIS dinamis per order lewat payment gateway (Midtrans/Xendit). Dengan itu, status PAID terisi otomatis dari webhook tanpa perlu konfirmasi manual admin.
 
+### 5.5b Link Order Online (pelanggan jarak jauh)
+
+Untuk pelanggan yang memesan dari rumah (WhatsApp, Instagram), toko membagikan **satu link** `https://<domain>/pesan/<token>` beserta QR-nya (menu **Lainnya → Link Order Online**: salin link, kirim ke WhatsApp, bagikan, unduh QR, ganti link bila disalahgunakan).
+
+- **Menu** sama dengan QR meja (kategori `isCustomerVisible`, harga dari server).
+- **Checkout:** nama penerima, **No. WA wajib**, cara terima **Diantar** (alamat + patokan wajib) atau **Ambil sendiri** (alamat toko), **tanggal kirim/ambil**, catatan, cara bayar (**QRIS** bernominal + kode unik, atau **Cash/COD** saat diterima/diambil).
+- **Jadwal:** link aktif kapan saja. Saat toko buka boleh untuk hari ini; di luar jam buka atau toko tutup, paling cepat besok; maksimal 14 hari ke depan. Pesanan tanggal depan tidak dicek stok saat dibuat (dicek saat approve) dan masuk Rekap Produksi & Packing.
+- **Ongkir tetap** (Pengaturan order online) + **gratis ongkir** mulai subtotal tertentu; ongkir masuk total (tidak kena diskon). Admin bisa mematikan layanan antar atau order online sementara.
+- **Batas spam:** maksimal 3 pesanan menunggu per No. WA (nomor dinormalkan), plus rate limit per IP.
+- Sumber order **Online** (terpisah di laporan). Order online dikunci seperti order QR: admin hanya approve/tolak; approval, detail order, packing, tagihan, dan struk menampilkan alamat, No. WA (tautan chat), dan ongkir.
+
 ### 5.6 Meja & QR, dan Antrian Dapur — baru
 
 **Meja & QR (Admin > Lainnya > Meja & QR)**
@@ -902,3 +913,4 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 1.1 | 21 Sep 2026 | Pre-order massal via tempel pesan, rekap produksi, packing, tagihan, approve massal |
 | 2.0 | 25 Sep 2026 | **Final.** Role Pelanggan + self-order QR meja (QRIS, lacak pesanan), Meja & QR, Antrian Dapur, CRUD menu diperjelas, Pengeluaran, Shift Kasir, laporan Laba Rugi & Arus Kas, pengaturan jam buka. Urutan sprint diubah (jualan dulu). Stack dipastikan: NestJS 11, Prisma 6, React 19, Vite 7, Tailwind 4. Sprint 0 selesai. Printer ditetapkan: Axelpos/Iware C58BT. |
 | 2.1 | 25 Sep 2026 | Pelanggan QR memilih cara bayar sendiri (QRIS / Cash, diatur di Metode Bayar). QRIS bernominal dari QRIS statis toko + kode unik Rp1–99; bukti bayar jadi opsional. Order pelanggan QR dikunci saat approval (tanpa ubah item/diskon), metode bayar mengikuti pilihan pelanggan. QR bernominal di layar kasir untuk order staff. |
+| 2.2 | 25 Sep 2026 | **Link Order Online** untuk pelanggan jarak jauh: satu link + QR toko, ambil sendiri/diantar, ongkir tetap + gratis ongkir, pilih tanggal (pre-order kapan saja), bayar QRIS/COD, batas pesanan menunggu per No. WA, sumber order Online. |
