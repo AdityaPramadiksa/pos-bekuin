@@ -1,4 +1,4 @@
-import { formatRupiah, type PublicOrderView } from '@bekuin/shared';
+import { finalStage, formatRupiah, ORDER_STAGE_LABEL, type PublicOrderView } from '@bekuin/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react';
 import { useEffect } from 'react';
@@ -6,7 +6,12 @@ import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { ErrorState, LoadingState } from '@/components/ui/states';
-import { categoryLabel, formatDateKey, formatTime } from '@/features/orders/order-format';
+import {
+  categoryLabel,
+  dateKeyWita,
+  formatDateKey,
+  formatTime,
+} from '@/features/orders/order-format';
 import { errorMessage, publicApi } from '@/lib/api';
 import { compressImage } from '@/lib/image';
 import { createSocket } from '@/lib/socket';
@@ -14,29 +19,33 @@ import { cn } from '@/lib/utils';
 import { findMyOrder } from './my-orders';
 import { PaymentPanel } from './PaymentPanel';
 
-/** Tahap yang dilihat pelanggan. */
+/** Status akhir pesanan pelanggan: Dikirim (diantar) atau Siap diambil. */
+const finalOf = (o: PublicOrderView) =>
+  finalStage({
+    source: o.delivery ? 'ONLINE' : 'QR_TABLE',
+    deliveryMethod: o.delivery?.method ?? null,
+  });
+
+/** Tahap yang dilihat pelanggan: diterima → dikonfirmasi & diproses → dikirim / siap diambil. */
 function steps(o: PublicOrderView) {
   const paid = o.status === 'PAID';
-  const f = o.fulfillmentStatus;
+  const done = paid && o.fulfillmentStatus === 'DONE';
+  const cod = o.payAtCashier && !o.isPaid;
   return [
     { label: 'Pesanan diterima', done: true, at: o.createdAt },
     {
-      label: o.payAtCashier ? 'Dibayar di kasir' : 'Pembayaran dikonfirmasi',
+      label:
+        cod || o.payAtCashier
+          ? 'Dikonfirmasi, sedang diproses'
+          : 'Pembayaran diterima, sedang diproses',
       done: paid,
       at: o.approvedAt,
     },
-    { label: 'Sedang disiapkan', done: paid && f !== 'QUEUED', at: null },
     {
-      label:
-        o.type === 'DINE_IN'
-          ? 'Siap diantar ke meja'
-          : o.delivery?.method === 'DELIVERY'
-            ? 'Siap diantar'
-            : 'Siap diambil',
-      done: paid && (f === 'READY' || f === 'HANDED_OVER'),
-      at: o.readyAt,
+      label: o.type === 'DINE_IN' ? 'Siap diantar ke meja' : ORDER_STAGE_LABEL[finalOf(o)],
+      done,
+      at: o.completedAt,
     },
-    { label: 'Selesai', done: paid && f === 'HANDED_OVER', at: o.handedOverAt },
   ];
 }
 
@@ -52,6 +61,15 @@ function headline(o: PublicOrderView): {
   if (o.status === 'VOIDED')
     return { title: 'Pesanan dibatalkan kasir', sub: 'Silakan hubungi kasir.', tone: 'red' };
   if (o.status === 'PENDING') {
+    if (o.payAtCashier && o.delivery)
+      return {
+        title: 'Menunggu konfirmasi toko',
+        sub:
+          o.delivery.method === 'DELIVERY'
+            ? 'Bayar tunai ke kurir saat pesanan sampai.'
+            : 'Bayar tunai saat ambil pesanan di toko.',
+        tone: 'amber',
+      };
     if (o.payAtCashier)
       return {
         title: 'Silakan bayar di kasir',
@@ -69,27 +87,37 @@ function headline(o: PublicOrderView): {
       sub:
         o.payment.type === 'TRANSFER'
           ? 'Transfer sesuai nominal di bawah.'
-          : 'Scan QRIS di bawah dan bayar sesuai nominal.',
+          : 'Scan QRIS di bawah dan bayar sesuai nominal. Pesanan otomatis diproses begitu uang masuk.',
       tone: 'amber',
     };
   }
-  if (o.fulfillmentStatus === 'HANDED_OVER')
-    return { title: 'Selesai. Terima kasih!', sub: 'Selamat menikmati 🥟', tone: 'green' };
-  if (o.fulfillmentStatus === 'READY') {
-    return {
-      title: 'Pesanan siap!',
-      sub:
-        o.type === 'DINE_IN'
-          ? 'Segera diantar ke meja kamu.'
-          : o.delivery?.method === 'DELIVERY'
-            ? 'Pesanan segera diantar ke alamatmu.'
-            : 'Silakan ambil di toko.',
-      tone: 'green',
-    };
+  if (o.fulfillmentStatus === 'DONE') {
+    if (o.type === 'DINE_IN')
+      return { title: 'Pesanan siap!', sub: 'Segera diantar ke meja kamu. 🥟', tone: 'green' };
+    return finalOf(o) === 'SHIPPED'
+      ? {
+          title: 'Pesanan dikirim!',
+          sub: o.isPaid
+            ? 'Kurir sedang menuju alamatmu. Terima kasih!'
+            : `Kurir sedang menuju alamatmu. Siapkan uang tunai ${formatRupiah(o.total)} ya.`,
+          tone: 'green',
+        }
+      : {
+          title: 'Pesanan siap diambil!',
+          sub: o.isPaid
+            ? 'Silakan ambil di toko. Terima kasih!'
+            : `Silakan ambil di toko dan bayar ${formatRupiah(o.total)}.`,
+          tone: 'green',
+        };
   }
-  if (o.fulfillmentStatus === 'PREPARING')
-    return { title: 'Sedang disiapkan', sub: 'Mohon ditunggu sebentar ya.', tone: 'blue' };
-  return { title: 'Pembayaran diterima', sub: 'Pesanan masuk antrian dapur.', tone: 'blue' };
+  return {
+    title: 'Pesanan diproses',
+    sub:
+      o.delivery && o.delivery.date > dateKeyWita()
+        ? `Pesanan untuk ${formatDateKey(o.delivery.date)} sedang kami siapkan.`
+        : 'Pesanan sedang kami siapkan, mohon ditunggu ya.',
+    tone: 'blue',
+  };
 }
 
 const TONE = {

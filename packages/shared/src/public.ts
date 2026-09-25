@@ -89,8 +89,9 @@ export interface PublicOrderView {
   reason: string | null;
   createdAt: string;
   approvedAt: string | null;
-  readyAt: string | null;
-  handedOverAt: string | null;
+  completedAt: string | null;
+  /** Sudah dibayar (QRIS terkonfirmasi / uang tunai diterima). */
+  isPaid: boolean;
   store: { name: string; qrisImageUrl: string | null; phone: string | null };
   /** Pesanan online: cara terima & tanggal. */
   delivery: {

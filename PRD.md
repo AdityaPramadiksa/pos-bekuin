@@ -142,7 +142,7 @@ Di HP, navigasi memakai bottom tab bar. Di tablet/desktop (mode kasir), navigasi
 
 1. **Order Baru (POS):** mode **Cepat** (stepper) dan **Tempel Pesan** (paste WhatsApp).
 2. **History:** order milik sendiri, filter status dan tanggal kirim, dikelompokkan per pelanggan.
-3. **Dapur:** antrian dapur (Antre → Disiapkan → Siap → Diserahkan).
+3. **Diproses:** rangkuman item yang harus disiapkan + daftar per pelanggan, tombol Selesai (v2.3; sebelumnya Antrian Dapur).
 4. **Akun:** profil, ganti password, logout.
 
 **Menu Admin (5 tab)**
@@ -156,7 +156,7 @@ Di HP, navigasi memakai bottom tab bar. Di tablet/desktop (mode kasir), navigasi
    - Detail, ubah item, diskon, pilih metode bayar, **Approve & Print**, Reject, Approve Massal
 3. **Order**
    - Semua Transaksi (filter tanggal, status, sumber, staff, metode bayar), detail, cetak ulang, void
-   - Buat Order Langsung, **Antrian Dapur**, Tempel Pesan, Rekap Produksi, Packing & Tagihan
+   - Buat Order Langsung, Tempel Pesan, Rekap Produksi (**Diproses** menjadi tab sendiri sejak v2.3, menggantikan Antrian Dapur dan Packing & Tagihan)
 4. **Stok**
    - Stok Produk, Stok Bahan Baku, Stok Masuk, Produksi, Stok Opname, Penyesuaian/Waste, Riwayat Mutasi
 5. **Lainnya**
@@ -304,10 +304,12 @@ sequenceDiagram
 **Di sisi admin dan staff**
 
 - Order QR muncul di Approval dengan label **QR · Meja 5**, badge "Bukti bayar ✓" bila sudah unggah, dan suara berbeda.
-- Setelah approve, order masuk **Antrian Dapur** (5.6).
+- Setelah disetujui, order masuk halaman **Diproses** (5.6).
 - Order QR yang PENDING lebih dari 30 menit tanpa bukti bayar diberi tanda "Kedaluwarsa?" agar admin bisa menolaknya.
 
-**Fase berikutnya:** QRIS dinamis per order lewat payment gateway (Midtrans/Xendit). Dengan itu, status PAID terisi otomatis dari webhook tanpa perlu konfirmasi manual admin.
+**QRIS otomatis (v2.3):** MacroDroid di HP admin (Android) meneruskan notifikasi DANA "uang masuk" ke webhook rahasia (`Lainnya → QRIS Otomatis`). Bila nominalnya sama persis dengan total + kode unik satu order QRIS yang menunggu, order langsung disetujui → Diproses, perangkat admin berbunyi dan mencetak struk (bila printer terhubung). Notifikasi uang keluar/top up/nominal lain hanya dicatat; admin menyetujui manual seperti biasa.
+
+**Fase berikutnya:** QRIS dinamis per order lewat payment gateway (Midtrans/Xendit) bila notifikasi e-wallet tidak cukup andal.
 
 ### 5.5b Link Order Online (pelanggan jarak jauh)
 
@@ -320,7 +322,7 @@ Untuk pelanggan yang memesan dari rumah (WhatsApp, Instagram), toko membagikan *
 - **Batas spam:** maksimal 3 pesanan menunggu per No. WA (nomor dinormalkan), plus rate limit per IP.
 - Sumber order **Online** (terpisah di laporan). Order online dikunci seperti order QR: admin hanya approve/tolak; approval, detail order, packing, tagihan, dan struk menampilkan alamat, No. WA (tautan chat), dan ongkir.
 
-### 5.6 Meja & QR, dan Antrian Dapur — baru
+### 5.6 Meja & QR, dan halaman Diproses
 
 **Meja & QR (Admin > Lainnya > Meja & QR)**
 
@@ -328,11 +330,13 @@ Untuk pelanggan yang memesan dari rumah (WhatsApp, Instagram), toko membagikan *
 - Setiap meja punya `qrToken` acak. Tombol: **Lihat QR**, **Unduh PNG**, **Ganti QR** (token baru; QR lama langsung tidak berlaku), dan **Cetak semua QR**.
 - Cetak semua QR menghasilkan halaman A4 siap print: kartu per meja berisi logo, "Scan untuk pesan", nomor meja, dan QR. Bisa juga dicetak ke printer 58mm.
 
-**Antrian Dapur (Staff > tab Dapur, Admin > Order > Dapur)**
+**Diproses (Staff & Admin > tab Diproses) — v2.3, menggantikan Antrian Dapur dan Packing & Tagihan**
 
-- Kolom **Antre / Disiapkan / Siap**. Kartu berisi nomor order, meja atau nama, item (Siap Makan diberi tanda "Goreng"), dan waktu sejak dibayar.
-- Tap kartu untuk memajukan status. Waktu `preparingAt`, `readyAt`, dan `handedOverAt` tercatat untuk laporan kecepatan layanan.
-- Realtime lewat event `order.fulfillment`, dan pelanggan QR ikut menerima update.
+- Semua order yang sudah disetujui dan belum selesai, disaring per tanggal kirim (Hari ini / tanggal pre-order / Semua).
+- **Rangkuman yang harus disiapkan:** total order, pack, pcs; per produk total pcs dengan rincian kategori × isi (mis. Frozen isi 6 × 4), jumlah pack yang perlu digoreng. Bisa disalin ke WhatsApp atau dicetak 58mm.
+- **Per pelanggan:** nama, alamat antar / ambil sendiri, No. WA, item, total, status bayar; tombol Label, Struk, Tagihan, **Sudah dibayar** (admin, untuk COD), dan tombol selesai: **Tandai dikirim** (online diantar), **Siap diambil** (ambil sendiri, QR meja), **Selesai** (order staff). Itu status terakhir.
+- Tab **Selesai hari ini**; admin bisa mengembalikan ke Diproses bila salah tekan. `completedAt` tercatat untuk laporan layanan.
+- Realtime lewat event `order.fulfillment`, dan pelanggan ikut menerima update di halaman lacak.
 
 ### 5.7 Menu & Harga (CRUD) — diperjelas
 
@@ -914,3 +918,4 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 2.0 | 25 Sep 2026 | **Final.** Role Pelanggan + self-order QR meja (QRIS, lacak pesanan), Meja & QR, Antrian Dapur, CRUD menu diperjelas, Pengeluaran, Shift Kasir, laporan Laba Rugi & Arus Kas, pengaturan jam buka. Urutan sprint diubah (jualan dulu). Stack dipastikan: NestJS 11, Prisma 6, React 19, Vite 7, Tailwind 4. Sprint 0 selesai. Printer ditetapkan: Axelpos/Iware C58BT. |
 | 2.1 | 25 Sep 2026 | Pelanggan QR memilih cara bayar sendiri (QRIS / Cash, diatur di Metode Bayar). QRIS bernominal dari QRIS statis toko + kode unik Rp1–99; bukti bayar jadi opsional. Order pelanggan QR dikunci saat approval (tanpa ubah item/diskon), metode bayar mengikuti pilihan pelanggan. QR bernominal di layar kasir untuk order staff. |
 | 2.2 | 25 Sep 2026 | **Link Order Online** untuk pelanggan jarak jauh: satu link + QR toko, ambil sendiri/diantar, ongkir tetap + gratis ongkir, pilih tanggal (pre-order kapan saja), bayar QRIS/COD, batas pesanan menunggu per No. WA, sumber order Online. |
+| 2.3 | 25 Sep 2026 | **Alur order nyata.** Approval = "order masuk": admin setujui → **Diproses** → tombol Selesai → **Dikirim** (online diantar) / **Siap diambil** (ambil sendiri, QR meja) / **Selesai** (order staff). `fulfillmentStatus` disederhanakan jadi PROCESSING/DONE (Antrian Dapur & Packing digabung ke halaman **Diproses** berisi rangkuman total item + daftar per pelanggan, label, tagihan). Pembayaran dipisah dari persetujuan (`paidAt`): COD/bayar saat ambil disetujui sebagai **Belum dibayar**, lalu "Sudah dibayar" saat uang diterima (cash masuk shift saat itu); arus kas memisahkan yang belum dibayar. Pre-order hari lain boleh membuat stok minus saat disetujui. **QRIS otomatis:** MacroDroid di HP admin meneruskan notifikasi DANA ke webhook rahasia; nominal = total + kode unik → order langsung Diproses, bunyi + cetak struk otomatis di perangkat admin yang printernya terhubung; semua notifikasi dicatat. |

@@ -75,7 +75,7 @@ function CustomersTab() {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{c.name}</p>
                   <p className="text-xs text-stone-500">
-                    {c.phone ?? 'tanpa WA'} · {c.orderCount} order lunas
+                    {c.phone ?? 'tanpa WA'} · {c.orderCount} order
                     {c.lastOrderAt ? ` · terakhir ${formatDateTime(c.lastOrderAt)}` : ''}
                   </p>
                 </div>
@@ -177,7 +177,7 @@ function CustomerDialog({ customer, onClose }: { customer: CustomerView; onClose
       open
       onClose={onClose}
       title={customer.name}
-      description={`${customer.orderCount} order lunas · ${formatRupiah(customer.totalSpent)}`}
+      description={`${customer.orderCount} order · ${formatRupiah(customer.totalSpent)}`}
       footer={
         <>
           <Button variant="outline" loading={reorder.isPending} onClick={() => reorder.mutate()}>

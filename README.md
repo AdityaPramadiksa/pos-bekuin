@@ -9,18 +9,20 @@ Spesifikasi lengkap ada di [PRD.md](PRD.md).
 **Staff (POS)**
 - Layar order cepat per kategori Frozen / Siap Makan, keranjang tersimpan walau HP mati, tanggal kirim (hari ini/besok/pre-order)
 - Tempel pesan WhatsApp → otomatis jadi banyak order (parser dengan koreksi ejaan)
-- Riwayat order sendiri + notifikasi saat order di-approve/ditolak, antrian dapur
+- Riwayat order sendiri + notifikasi saat order disetujui/ditolak, halaman Diproses
 
 **Admin**
-- Approval realtime (bunyi + badge): koreksi item, diskon, bayar Cash (kembalian) / QRIS / Transfer, cetak struk, approve massal
+- Approval = order masuk (bunyi + badge): koreksi item, diskon, bayar Cash (kembalian) / QRIS / Transfer atau **bayar nanti (COD)**, cetak struk, proses massal
+- **Diproses:** rangkuman total item yang harus disiapkan + daftar per pelanggan (label, tagihan), tombol Selesai → Dikirim / Siap diambil / Selesai, "Sudah dibayar" untuk COD
+- **QRIS otomatis:** notifikasi DANA di HP admin (MacroDroid) → order QRIS yang nominalnya cocok langsung diproses, bunyi + struk tercetak otomatis
 - Menu & harga, meja & QR, pengguna, metode bayar, pengaturan toko & jam buka
 - Bahan baku, resep bertingkat, **HPP & margin otomatis**; stok masuk, produksi, opname, waste
-- Rekap produksi pre-order (daftar belanja, adonan per batch), packing & tagihan, data pelanggan
+- Rekap produksi pre-order (daftar belanja, adonan per batch), data pelanggan
 - **Keuangan:** shift kasir (modal, kas seharusnya, selisih), pengeluaran + foto nota
 - **Laporan:** penjualan, laba rugi, laba per produk, produk terlaris, arus kas, mutasi stok, shift, layanan QR, rekap harian (cetak 58mm), export Excel/CSV, grafik 7 hari di dashboard
 
 **Pelanggan (tanpa akun)**
-- Scan QR di meja → pesan → bayar QRIS (nominal otomatis) atau cash → lacak status realtime sampai pesanan siap
+- Scan QR di meja → pesan → bayar QRIS (nominal otomatis, langsung diproses begitu uang masuk) atau cash → lacak status realtime sampai pesanan siap
 - **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/COD
 
 ## Tampilan
@@ -60,7 +62,7 @@ flowchart LR
 ```
 
 Aturan inti:
-- Semua order (POS, QR, WhatsApp) masuk **PENDING**. Stok baru terpotong saat admin approve, dalam satu transaksi.
+- Semua order (POS, QR, online, WhatsApp) masuk **PENDING**. Stok baru terpotong saat disetujui (admin, atau otomatis saat QRIS terdeteksi), dalam satu transaksi. Setelah itu **Diproses** → Selesai/Dikirim/Siap diambil.
 - Harga & total selalu dihitung ulang di server.
 - Stok hanya diubah lewat `StockService` (kunci baris + catatan mutasi).
 - Uang disimpan sebagai rupiah bulat. Tanggal bisnis memakai WITA (Asia/Makassar).

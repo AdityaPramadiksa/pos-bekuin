@@ -228,7 +228,7 @@ describe('Sprint 6: pre-order massal via WhatsApp (e2e)', () => {
       .send({ orderIds: [orderIds[0], 'tidak-ada'], paymentMethodId: qris.id })
       .expect(200);
     expect(res.body).toMatchObject({ succeeded: 0, failed: 2 });
-    expect(res.body.results[0].message).toMatch(/lunas/);
+    expect(res.body.results[0].message).toMatch(/disetujui/);
   });
 
   it('packing: daftar per tanggal kirim & status packing', async () => {
@@ -238,11 +238,7 @@ describe('Sprint 6: pre-order massal via WhatsApp (e2e)', () => {
     expect(list.items.filter((o: { batchId: string }) => o.batchId === batchId)).toHaveLength(12);
     await admin
       .as(api().patch(`/api/v1/orders/${orderIds[0]}/fulfillment`))
-      .send({ status: 'READY' })
-      .expect(200);
-    await admin
-      .as(api().patch(`/api/v1/orders/${orderIds[0]}/fulfillment`))
-      .send({ status: 'HANDED_OVER' })
+      .send({ status: 'DONE' })
       .expect(200);
   });
 

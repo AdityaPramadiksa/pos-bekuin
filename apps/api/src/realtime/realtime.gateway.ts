@@ -9,7 +9,7 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-import type { OrderEvent } from '@bekuin/shared';
+import type { AutoApprovedEvent, OrderEvent } from '@bekuin/shared';
 import type { Server, Socket } from 'socket.io';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import type { Env } from '../config/env';
@@ -19,7 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
  * Room:
  * - admins            : semua admin (order baru, perubahan status)
  * - user:<id>         : staff pembuat order (hasil approve/tolak)
- * - kitchen           : staff & admin (antrian dapur)
+ * - kitchen           : staff & admin (halaman Diproses)
  * - order:<publicToken>: halaman lacak pesanan pelanggan QR (tanpa login)
  */
 // CORS diatur CorsIoAdapter (app.setup.ts) dari CORS_ORIGIN.
@@ -83,6 +83,16 @@ export class RealtimeGateway implements OnGatewayInit {
 
   fulfillmentChanged(order: OrderEvent) {
     this.emit(['kitchen', 'admins'], 'order.fulfillment', order);
+  }
+
+  /** QRIS terdeteksi dari notifikasi e-wallet → perangkat admin berbunyi & cetak struk otomatis. */
+  autoApproved(payload: AutoApprovedEvent) {
+    this.emit(['admins'], 'order.autoApproved', payload);
+  }
+
+  /** Notifikasi e-wallet baru tercatat → daftar di halaman pengaturan dimuat ulang. */
+  paymentNotification() {
+    this.emit(['admins'], 'payment.notification', {});
   }
 
   orderStatusForCustomer(

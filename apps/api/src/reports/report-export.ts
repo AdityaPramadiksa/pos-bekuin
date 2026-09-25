@@ -233,13 +233,12 @@ export function toSheets(type: ReportType, data: ReportData): Sheet[] {
       return [
         kvSheet('Ringkasan', [
           ['Order QR', d.orders],
-          ['Lunas', d.paid],
+          ['Disetujui', d.paid],
           ['Ditolak', d.rejected],
           ['Dibatalkan', d.cancelled],
           ['Omzet', d.revenue],
-          ['Rata-rata pesan → bayar (menit)', d.avgMinutes.orderToPaid],
-          ['Rata-rata bayar → siap (menit)', d.avgMinutes.paidToReady],
-          ['Rata-rata siap → diserahkan (menit)', d.avgMinutes.readyToHanded],
+          ['Rata-rata pesan → disetujui (menit)', d.avgMinutes.orderToPaid],
+          ['Rata-rata disetujui → selesai (menit)', d.avgMinutes.paidToDone],
           ['Rata-rata total (menit)', d.avgMinutes.total],
         ]),
         {

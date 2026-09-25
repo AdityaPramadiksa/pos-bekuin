@@ -75,7 +75,7 @@ export function ApproveDialog({
       open={!!orderId}
       onClose={onClose}
       size="lg"
-      title={order.data ? `Bayar ${order.data.orderNo}` : 'Proses pembayaran'}
+      title={order.data ? `Proses ${order.data.orderNo}` : 'Proses order'}
     >
       {order.isPending ? (
         <LoadingState rows={3} />
@@ -118,13 +118,15 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   // Order pelanggan QR sudah final: isi & diskon dikunci, cara bayar dari pilihan pelanggan.
   const isCustomerOrder = order.source === 'QR_TABLE' || order.source === 'ONLINE';
   const [changingMethod, setChangingMethod] = useState(false);
+  // Uang belum diterima: COD / bayar saat ambil (order tetap diproses, ditandai lunas nanti).
+  const [payLater, setPayLater] = useState(order.source === 'ONLINE' && order.payAtCashier);
   const selectedMethodId = methodId ?? order.paymentMethod?.id ?? null;
   const method = methods.data?.find((m) => m.id === selectedMethodId) ?? null;
   const isCash = method?.type === 'CASH';
   const change = isCash && paid !== '' ? paid - total : 0;
   const itemCount = Object.values(qty).filter((q) => q > 0).length;
   // Cash masuk laci → wajib ada shift kasir terbuka (dicek juga di server).
-  const noShift = isCash && shift.isSuccess && !shift.data;
+  const noShift = isCash && !payLater && shift.isSuccess && !shift.data;
   // Nominal yang harus masuk untuk QRIS pelanggan (total + kode unik).
   const expectedQris =
     method?.type === 'QRIS' && order.uniqueCode && method.id === order.paymentMethod?.id
@@ -136,7 +138,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
     itemCount === 0 ||
     discount > subtotal ||
     noShift ||
-    (isCash && (paid === '' || paid < total));
+    (isCash && !payLater && (paid === '' || paid < total));
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -154,7 +156,8 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
       return (
         await api.post<OrderView>(`/orders/${order.id}/approve`, {
           paymentMethodId: selectedMethodId,
-          paidAmount: isCash ? paid : undefined,
+          paidAmount: isCash && !payLater ? paid : undefined,
+          payLater: payLater || undefined,
           discount,
           paymentRef: paymentRef.trim() || null,
           items: items.length ? items : undefined,
@@ -164,18 +167,18 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
     onSuccess: async (paidOrder) => {
       refresh();
       setDone(paidOrder);
-      // Order tetap PAID walau printer gagal; tombol cetak ulang tersedia.
+      // Order tetap diproses walau printer gagal; tombol cetak ulang tersedia.
       if (settings.data && isPrinterConnected()) {
         try {
           await printReceipt(paidOrder, settings.data);
-          toast.success('Lunas & struk dicetak');
+          toast.success('Diproses & struk dicetak');
         } catch (error) {
           toast.error(
-            `Lunas, tapi struk gagal dicetak: ${error instanceof Error ? error.message : ''}`,
+            `Diproses, tapi struk gagal dicetak: ${error instanceof Error ? error.message : ''}`,
           );
         }
       } else {
-        toast.success('Order lunas. Printer belum terhubung — cetak dari tombol di bawah.');
+        toast.success('Order diproses. Printer belum terhubung — cetak dari tombol di bawah.');
       }
     },
     onError: (error) => toast.error(errorMessage(error), { duration: 8000 }),
@@ -202,9 +205,12 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
       <div className="space-y-4 py-4 text-center">
         <CheckCircle2 className="mx-auto size-14 text-green-600" />
         <div>
-          <p className="text-lg font-bold">Lunas {formatRupiah(done.total)}</p>
+          <p className="text-lg font-bold">
+            Diproses · {done.paidAt ? 'Lunas' : 'Belum dibayar'} {formatRupiah(done.total)}
+          </p>
           <p className="text-sm text-stone-500">
             {done.orderNo} · {done.paymentMethod?.name}
+            {done.paidAt ? '' : ' · tandai lunas di halaman Diproses saat uang diterima'}
           </p>
         </div>
         {!!done.changeAmount && (
@@ -234,7 +240,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
     return (
       <div className="space-y-4 py-6 text-center">
         <p className="font-semibold">
-          Order ini sudah diproses ({ORDER_STATUS_LABEL[order.status]}).
+          Order ini sudah tidak menunggu ({ORDER_STATUS_LABEL[order.status]}).
         </p>
         <p className="text-sm text-stone-500">
           Mungkin sudah di-approve admin lain atau dibatalkan staff.
@@ -447,13 +453,39 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           </div>
         </div>
       )}
-      {expectedQris !== null && (
+      {/* Kapan uang diterima: sekarang, atau nanti (COD / bayar saat ambil / ditagih). */}
+      {method && (
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 text-sm">
+          {[
+            { later: false, label: 'Sudah dibayar' },
+            { later: true, label: 'Bayar nanti (COD)' },
+          ].map((o) => (
+            <button
+              key={o.label}
+              onClick={() => setPayLater(o.later)}
+              className={cn(
+                'rounded-lg px-2 py-2 font-medium',
+                payLater === o.later ? 'bg-white shadow-sm' : 'text-stone-600',
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {payLater && (
+        <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          Order langsung <b>diproses</b> dengan status <b>belum dibayar</b>. Tekan{' '}
+          <b>Sudah dibayar</b> di halaman Diproses saat uangnya diterima.
+        </p>
+      )}
+      {expectedQris !== null && !payLater && (
         <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
           <p>Cek notifikasi DANA / mutasi QRIS, harus masuk:</p>
           <p className="text-2xl font-bold">{formatRupiah(expectedQris)}</p>
           <p className="text-xs">
             Total {formatRupiah(order.total)} + kode unik {formatRupiah(order.uniqueCode ?? 0)}.
-            Approve bila nominal ini sudah masuk.
+            Bila notifikasi DANA sudah tersambung, order ini diproses otomatis begitu uang masuk.
           </p>
         </div>
       )}
@@ -467,7 +499,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           </Link>
         </div>
       )}
-      {isCash && !noShift && (
+      {isCash && !noShift && !payLater && (
         <div className="space-y-2">
           <Field label="Uang diterima">
             <MoneyInput autoFocus value={paid} onChange={setPaid} />
@@ -495,7 +527,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           )}
         </div>
       )}
-      {method && method.type !== 'CASH' && (
+      {method && method.type !== 'CASH' && !payLater && (
         <div className="space-y-2">
           {method.accountInfo && <p className="text-sm text-stone-600">{method.accountInfo}</p>}
           {/* Bayar QRIS langsung di kasir: tunjukkan QR bernominal ke pelanggan. */}
@@ -539,7 +571,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           loading={approve.isPending}
           onClick={() => approve.mutate()}
         >
-          <Printer className="size-4" /> Approve & Print
+          <Printer className="size-4" /> Proses & cetak struk
         </Button>
       </div>
     </div>

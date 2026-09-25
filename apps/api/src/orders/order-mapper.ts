@@ -56,9 +56,8 @@ export function toOrderView(order: OrderRow | OrderDetailRow, isAdmin: boolean):
     createdBy: order.createdBy,
     approvedBy: order.approvedBy,
     approvedAt: iso(order.approvedAt),
-    preparingAt: iso(order.preparingAt),
-    readyAt: iso(order.readyAt),
-    handedOverAt: iso(order.handedOverAt),
+    paidAt: iso(order.paidAt),
+    completedAt: iso(order.completedAt),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     items: order.items.map((i) => ({

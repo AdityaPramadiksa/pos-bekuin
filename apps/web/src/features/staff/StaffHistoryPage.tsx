@@ -16,7 +16,7 @@ const RANGES = [
 const STATUSES = [
   { key: '', label: 'Semua' },
   { key: 'PENDING', label: 'Menunggu' },
-  { key: 'PAID', label: 'Lunas' },
+  { key: 'PAID', label: 'Disetujui' },
   { key: 'REJECTED,CANCELLED', label: 'Batal/Ditolak' },
 ];
 
@@ -63,7 +63,7 @@ export function StaffHistoryPage() {
           <>
             {totalPaid > 0 && (
               <p className="text-sm text-stone-600">
-                Total lunas:{' '}
+                Total disetujui:{' '}
                 <b>
                   {totalPaid.toLocaleString('id-ID', {
                     style: 'currency',

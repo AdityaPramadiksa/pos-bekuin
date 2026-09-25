@@ -1,5 +1,5 @@
 import { formatRupiah } from '@bekuin/shared';
-import { ChefHat, ClipboardList, ClipboardPaste, PackageCheck, Plus, Search } from 'lucide-react';
+import { ChefHat, ClipboardList, ClipboardPaste, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -17,7 +17,7 @@ import { useOrders, usePaymentMethods } from '@/lib/queries';
 const STATUSES = [
   { key: '', label: 'Semua' },
   { key: 'PENDING', label: 'Menunggu' },
-  { key: 'PAID', label: 'Lunas' },
+  { key: 'PAID', label: 'Disetujui' },
   { key: 'REJECTED,CANCELLED', label: 'Batal/Ditolak' },
   { key: 'VOIDED', label: 'Void' },
 ];
@@ -61,12 +61,11 @@ export function OrdersPage() {
         }
       />
       <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
-        <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <nav className="grid grid-cols-3 gap-2">
           {[
-            { to: '/admin/order/dapur', label: 'Antrian Dapur', icon: ChefHat },
+            { to: '/admin/diproses', label: 'Diproses', icon: ChefHat },
             { to: '/admin/order/tempel', label: 'Tempel Pesan', icon: ClipboardPaste },
             { to: '/admin/order/rekap', label: 'Rekap Produksi', icon: ClipboardList },
-            { to: '/admin/order/packing', label: 'Packing & Tagihan', icon: PackageCheck },
           ].map((l) => (
             <Link
               key={l.to}
@@ -142,7 +141,7 @@ export function OrdersPage() {
         ) : (
           <>
             <p className="text-sm text-stone-600">
-              {orders.data.total} order · lunas <b>{formatRupiah(paidTotal)}</b>
+              {orders.data.total} order · disetujui <b>{formatRupiah(paidTotal)}</b>
             </p>
             <ul className="space-y-2">
               {orders.data.items.map((o) => (

@@ -359,8 +359,8 @@ export class PublicService {
       reason: order.status === 'REJECTED' || order.status === 'CANCELLED' ? order.reason : null,
       createdAt: order.createdAt.toISOString(),
       approvedAt: order.approvedAt?.toISOString() ?? null,
-      readyAt: order.readyAt?.toISOString() ?? null,
-      handedOverAt: order.handedOverAt?.toISOString() ?? null,
+      completedAt: order.completedAt?.toISOString() ?? null,
+      isPaid: !!order.paidAt,
       store: {
         name: settings?.storeName ?? 'Bekuin',
         qrisImageUrl: settings?.qrisImageUrl ?? null,

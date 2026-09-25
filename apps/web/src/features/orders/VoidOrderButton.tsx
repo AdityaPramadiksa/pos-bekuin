@@ -8,7 +8,7 @@ import { Dialog } from '@/components/ui/dialog';
 import { Field, Input } from '@/components/ui/input';
 import { api, errorMessage } from '@/lib/api';
 
-/** Void order lunas: stok & kemasan dikembalikan, order tetap tercatat sebagai VOID. */
+/** Void order yang sudah disetujui: stok & kemasan dikembalikan, order tetap tercatat sebagai VOID. */
 export function VoidOrderButton({ order }: { order: OrderView }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -17,7 +17,7 @@ export function VoidOrderButton({ order }: { order: OrderView }) {
     mutationFn: () => api.post(`/orders/${order.id}/void`, { reason }),
     onSuccess: () => {
       toast.success(`${order.orderNo} di-void, stok dikembalikan`);
-      for (const key of ['orders', 'order', 'reports', 'stock', 'catalog', 'kitchen'])
+      for (const key of ['orders', 'order', 'reports', 'stock', 'catalog', 'processing'])
         void queryClient.invalidateQueries({ queryKey: [key] });
       setOpen(false);
     },

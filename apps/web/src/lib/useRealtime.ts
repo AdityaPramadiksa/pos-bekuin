@@ -1,7 +1,8 @@
-import type { OrderEvent } from '@bekuin/shared';
+import { type AutoApprovedEvent, formatRupiah, type OrderEvent } from '@bekuin/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { autoPrintOrder } from '@/features/printer/auto-print';
 import { useAuthStore } from '@/stores/auth';
 import { api } from './api';
 import { createSocket, playChime } from './socket';
@@ -22,7 +23,7 @@ export function useRealtime() {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['order'] });
       void queryClient.invalidateQueries({ queryKey: ['reports'] });
-      void queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+      void queryClient.invalidateQueries({ queryKey: ['processing'] });
       void queryClient.invalidateQueries({ queryKey: ['finance'] });
     };
 
@@ -39,13 +40,38 @@ export function useRealtime() {
       void queryClient.invalidateQueries({ queryKey: ['catalog'] });
       if (role === 'STAFF' && e.createdById === userId) {
         if (e.status === 'PAID')
-          toast.success(`${e.orderNo} sudah dibayar`, { description: e.label });
+          toast.success(`${e.orderNo} disetujui, sedang diproses`, { description: e.label });
         if (e.status === 'REJECTED')
           toast.error(`${e.orderNo} ditolak admin`, { description: e.label });
       }
       if (role === 'ADMIN' && e.source === 'QR_TABLE' && e.status === 'PENDING') playChime();
     });
     socket.on('order.fulfillment', refreshOrders);
+    // QRIS terdeteksi dari notifikasi DANA → order otomatis diproses: bunyi + cetak struk.
+    socket.on('order.autoApproved', async (e: AutoApprovedEvent) => {
+      refreshOrders();
+      if (role !== 'ADMIN') return;
+      playChime();
+      setTimeout(playChime, 600);
+      const title = `QRIS masuk ${formatRupiah(e.amount)} · ${e.orderNo} diproses`;
+      try {
+        const printed = await autoPrintOrder(e.orderId);
+        toast.success(title, {
+          description: printed
+            ? 'Struk dicetak otomatis'
+            : 'Printer belum terhubung di perangkat ini',
+          duration: 10_000,
+        });
+      } catch (error) {
+        toast.warning(title, {
+          description: `Struk gagal dicetak: ${error instanceof Error ? error.message : ''}`,
+          duration: 10_000,
+        });
+      }
+    });
+    socket.on('payment.notification', () => {
+      void queryClient.invalidateQueries({ queryKey: ['payment-notifications'] });
+    });
     socket.on('finance.changed', () => {
       void queryClient.invalidateQueries({ queryKey: ['finance'] });
       void queryClient.invalidateQueries({ queryKey: ['reports'] });

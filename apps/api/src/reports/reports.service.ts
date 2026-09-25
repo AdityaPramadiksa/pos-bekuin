@@ -23,6 +23,7 @@ import {
   avgMinutes,
   eachDay,
   groupOrders,
+  isRevenue,
   orderDateKey,
   pct,
   productProfit,
@@ -45,6 +46,7 @@ const orderSelect = {
   total: true,
   hppTotal: true,
   approvedAt: true,
+  paidAt: true,
   createdAt: true,
   paymentMethodId: true,
   paymentMethod: { select: { name: true, type: true } },
@@ -261,8 +263,11 @@ export class ReportsService {
       }),
       this.cash.list(range.from, range.to),
     ]);
+    // Arus kas hanya menghitung uang yang sudah diterima; COD yang belum dibayar dipisah.
+    const received = orders.filter((o) => o.paidAt);
+    const unpaid = orders.filter((o) => isRevenue(o) && !o.paidAt);
     const byMethod = groupOrders(
-      orders,
+      received,
       (o) => o.paymentMethodId ?? '-',
       (o) => o.paymentMethodName ?? '-',
     );
@@ -270,7 +275,7 @@ export class ReportsService {
     const purchasesTotal = sumBy(purchases, (p) => p.total);
     const expenseRows = this.groupExpenses(expenses);
     const outflowTotal = purchasesTotal + sumBy(expenseRows, (e) => e.amount);
-    const byDay = salesByDay(orders, range.from, range.to).map((d) => {
+    const byDay = salesByDay(received, range.from, range.to).map((d) => {
       const outflow =
         sumBy(
           purchases.filter((p) => p.date.toISOString().startsWith(d.date)),
@@ -284,7 +289,11 @@ export class ReportsService {
     });
     return {
       range,
-      inflow: { byMethod, total: inflowTotal },
+      inflow: {
+        byMethod,
+        total: inflowTotal,
+        unpaid: { count: unpaid.length, amount: sumBy(unpaid, (o) => o.total) },
+      },
       outflow: { purchases: purchasesTotal, expenses: expenseRows, total: outflowTotal },
       net: inflowTotal - outflowTotal,
       byDay,
@@ -369,8 +378,7 @@ export class ReportsService {
         total: true,
         createdAt: true,
         approvedAt: true,
-        readyAt: true,
-        handedOverAt: true,
+        completedAt: true,
       },
     });
     const paid = orders.filter((o) => o.status === 'PAID');
@@ -392,9 +400,8 @@ export class ReportsService {
       revenue: sumBy(paid, (o) => o.total),
       avgMinutes: {
         orderToPaid: avgMinutes(paid.map((o) => [o.createdAt, o.approvedAt])),
-        paidToReady: avgMinutes(paid.map((o) => [o.approvedAt, o.readyAt])),
-        readyToHanded: avgMinutes(paid.map((o) => [o.readyAt, o.handedOverAt])),
-        total: avgMinutes(paid.map((o) => [o.createdAt, o.handedOverAt])),
+        paidToDone: avgMinutes(paid.map((o) => [o.approvedAt, o.completedAt])),
+        total: avgMinutes(paid.map((o) => [o.createdAt, o.completedAt])),
       },
       byDay: [...byDay.values()],
     };
@@ -471,6 +478,7 @@ export class ReportsService {
       total: o.total,
       hppTotal: o.hppTotal,
       approvedAt: o.approvedAt,
+      paidAt: o.paidAt,
       createdAt: o.createdAt,
       paymentMethodId: o.paymentMethodId,
       paymentMethodName: o.paymentMethod?.name ?? null,

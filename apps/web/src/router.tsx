@@ -51,9 +51,13 @@ export const router = createBrowserRouter([
                 ),
               },
               {
-                path: 'dapur',
-                element: lazyPage(() => import('@/features/kitchen/KitchenPage'), 'KitchenPage'),
+                path: 'diproses',
+                element: lazyPage(
+                  () => import('@/features/processing/ProcessingPage'),
+                  'ProcessingPage',
+                ),
               },
+              { path: 'dapur', element: <Navigate to="/staff/diproses" replace /> },
               {
                 path: 'akun',
                 element: lazyPage(() => import('@/features/auth/AccountPage'), 'AccountPage'),
@@ -106,9 +110,15 @@ export const router = createBrowserRouter([
                 ),
               },
               {
-                path: 'order/dapur',
-                element: lazyPage(() => import('@/features/kitchen/KitchenPage'), 'KitchenPage'),
+                path: 'diproses',
+                element: lazyPage(
+                  () => import('@/features/processing/ProcessingPage'),
+                  'ProcessingPage',
+                ),
               },
+              // Halaman lama (Antrian Dapur, Packing) digantikan halaman Diproses.
+              { path: 'order/dapur', element: <Navigate to="/admin/diproses" replace /> },
+              { path: 'order/packing', element: <Navigate to="/admin/diproses" replace /> },
               {
                 path: 'order/tempel',
                 element: lazyPage(() => import('@/features/preorder/PastePage'), 'PastePage'),
@@ -120,10 +130,7 @@ export const router = createBrowserRouter([
                   'ProductionPlanPage',
                 ),
               },
-              {
-                path: 'order/packing',
-                element: lazyPage(() => import('@/features/preorder/PackingPage'), 'PackingPage'),
-              },
+
               {
                 path: 'stok',
                 element: lazyPage(() => import('@/features/admin/stock/StockPage'), 'StockPage'),
@@ -139,6 +146,13 @@ export const router = createBrowserRouter([
               {
                 path: 'lainnya/pengguna',
                 element: lazyPage(() => import('@/features/admin/users/UsersPage'), 'UsersPage'),
+              },
+              {
+                path: 'lainnya/qris-otomatis',
+                element: lazyPage(
+                  () => import('@/features/admin/payment-notifications/QrisAutoPage'),
+                  'QrisAutoPage',
+                ),
               },
               {
                 path: 'lainnya/order-online',

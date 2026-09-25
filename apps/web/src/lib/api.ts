@@ -8,6 +8,11 @@ export const API_URL: string = import.meta.env.VITE_API_URL || '/api/v1';
 const API_ORIGIN = /^https?:\/\//.test(API_URL) ? new URL(API_URL).origin : '';
 
 /** "/uploads/menu/x.webp" -> URL yang bisa dipakai di <img>. */
+/** URL lengkap endpoint API (untuk dipakai dari luar aplikasi, mis. webhook MacroDroid). */
+export function apiAbsoluteUrl(path: string): string {
+  return `${API_ORIGIN || window.location.origin}${path}`;
+}
+
 export function assetUrl(path: string | null | undefined): string | undefined {
   if (!path) return undefined;
   return /^https?:\/\//.test(path) ? path : `${API_ORIGIN}${path}`;

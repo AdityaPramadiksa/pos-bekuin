@@ -4,7 +4,8 @@ import type { Request } from 'express';
 
 /**
  * Rate limit endpoint publik per (IP + token meja/link online/order), bukan hanya IP:
- * pelanggan di meja berbeda yang berbagi WiFi toko tidak saling memblokir.
+ * pelanggan di meja berbeda yang berbagi WiFi toko tidak saling memblokir. Webhook pembayaran
+ * memakai kunci URL-nya.
  */
 @Injectable()
 export class PublicThrottlerGuard extends ThrottlerGuard {
@@ -17,6 +18,7 @@ export class PublicThrottlerGuard extends ThrottlerGuard {
       params.qrToken ??
       params.onlineToken ??
       (req.params as { publicToken?: string }).publicToken ??
+      (req.params as { key?: string }).key ??
       '';
     return `${req.ip}:${String(token).slice(0, 64)}`;
   }

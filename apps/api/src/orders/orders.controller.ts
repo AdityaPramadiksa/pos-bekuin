@@ -8,6 +8,7 @@ import {
   BulkApproveDto,
   CreateOrderDto,
   ListOrdersDto,
+  MarkPaidDto,
   OptionalReasonDto,
   ReasonDto,
   UpdateOrderDto,
@@ -55,7 +56,7 @@ export class OrdersController {
   @Post('bulk-approve')
   @HttpCode(200)
   bulkApprove(@Body() dto: BulkApproveDto, @CurrentUser() user: JwtPayload) {
-    return this.orders.bulkApprove(dto.orderIds, dto.paymentMethodId, user);
+    return this.orders.bulkApprove(dto.orderIds, dto.paymentMethodId, user, dto.payLater);
   }
 
   @Get(':id')
@@ -80,6 +81,14 @@ export class OrdersController {
   @HttpCode(200)
   approve(@Param('id') id: string, @Body() dto: ApproveOrderDto, @CurrentUser() user: JwtPayload) {
     return this.orders.approve(id, dto, user);
+  }
+
+  /** Order COD / bayar saat ambil: uang sudah diterima. */
+  @Roles('ADMIN')
+  @Post(':id/mark-paid')
+  @HttpCode(200)
+  markPaid(@Param('id') id: string, @Body() dto: MarkPaidDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.markPaid(id, dto, user);
   }
 
   @Roles('ADMIN')

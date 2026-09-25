@@ -161,7 +161,8 @@ export interface ProductProfitReport {
 
 export interface CashflowReport {
   range: ReportRange;
-  inflow: { byMethod: AmountRow[]; total: number };
+  /** Hanya uang yang sudah diterima; order disetujui yang belum dibayar (COD) terpisah di `unpaid`. */
+  inflow: { byMethod: AmountRow[]; total: number; unpaid: { count: number; amount: number } };
   outflow: { purchases: number; expenses: AmountRow[]; total: number };
   net: number;
   byDay: { date: string; inflow: number; outflow: number; net: number }[];
@@ -200,9 +201,10 @@ export interface QrServiceReport {
   revenue: number;
   /** Rata-rata menit per tahap (null bila belum ada data). */
   avgMinutes: {
+    /** Pesan → disetujui. */
     orderToPaid: number | null;
-    paidToReady: number | null;
-    readyToHanded: number | null;
+    /** Disetujui → ditandai selesai/siap. */
+    paidToDone: number | null;
     total: number | null;
   };
   byDay: { date: string; orders: number; revenue: number }[];

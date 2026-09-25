@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { type OrderSource, OrderStatus, type OrderType, Prisma } from '@prisma/client';
+import {
+  type OrderSource,
+  OrderStatus,
+  type OrderType,
+  type PaymentType,
+  Prisma,
+} from '@prisma/client';
 import { normalizeName, type OrderListResponse, type OrderView } from '@bekuin/shared';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { lockOpenCashSession } from '../cash-sessions/cash-sessions.service';
@@ -19,6 +25,7 @@ import type {
   ApproveOrderDto,
   CreateOrderDto,
   ListOrdersDto,
+  MarkPaidDto,
   UpdateOrderDto,
 } from './dto/order.dto';
 import { orderDetailInclude, orderInclude, toOrderEvent, toOrderView } from './order-mapper';
@@ -269,7 +276,17 @@ export class OrdersService {
     return this.afterWrite(id, user, 'order.updated');
   }
 
-  async approveInTx(tx: Tx, id: string, dto: ApproveOrderDto, userId: string) {
+  /**
+   * Setujui order → Diproses. `userId` null = otomatis (notifikasi QRIS terdeteksi).
+   * `allowNegativeStock`: uang sudah masuk, jadi persetujuan tidak boleh gagal karena stok.
+   */
+  async approveInTx(
+    tx: Tx,
+    id: string,
+    dto: ApproveOrderDto,
+    userId: string | null,
+    opts: { allowNegativeStock?: boolean; logReason?: string } = {},
+  ) {
     const current = await tx.order.findUniqueOrThrow({
       where: { id },
       select: {
@@ -277,6 +294,7 @@ export class OrdersService {
         paymentMethodId: true,
         uniqueCode: true,
         deliveryFee: true,
+        deliveryDate: true,
         items: { select: { id: true, qty: true } },
       },
     });
@@ -322,25 +340,23 @@ export class OrdersService {
     if (!methodId) throw new BadRequestException('Pilih metode bayar');
     const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
-    const payment = settlePayment(total, method.type, dto.paidAmount);
-    // QRIS pelanggan dibayar dengan kode unik: uang yang masuk = total + kode.
-    if (method.type === 'QRIS' && current.uniqueCode && methodId === current.paymentMethodId) {
-      payment.paidAmount = total + current.uniqueCode;
-    }
-    // Uang cash masuk laci → wajib ada shift kasir terbuka (PRD 5.14).
-    let cashSessionId: string | null = null;
-    if (method.type === 'CASH') {
-      cashSessionId = await lockOpenCashSession(tx);
-      if (!cashSessionId) {
-        throw new BadRequestException(
-          'Belum ada shift kasir yang terbuka. Buka shift dulu di menu Keuangan → Shift Kasir.',
-        );
-      }
-    }
+    // Bayar nanti (COD / bayar saat ambil): order tetap diproses, uang dicatat saat diterima.
+    const payLater = dto.payLater === true;
+    const payment = payLater
+      ? { paidAmount: null, changeAmount: null, cashSessionId: null }
+      : await this.receivePayment(tx, {
+          total,
+          method,
+          paidAmount: dto.paidAmount,
+          uniqueCode: methodId === current.paymentMethodId ? current.uniqueCode : null,
+        });
 
     // 3. Potong stok pcs produk + kemasan per pack.
+    // Pre-order untuk hari lain boleh membuat stok minus: barangnya baru diproduksi sebelum dikirim.
     const settings = await tx.setting.findUnique({ where: { id: 'default' } });
-    const block = settings?.blockApproveOnLowStock ?? true;
+    const isPreorder = current.deliveryDate > dateOnly(todayKey());
+    const block =
+      (settings?.blockApproveOnLowStock ?? true) && !opts.allowNegativeStock && !isPreorder;
     const changes: StockChange[] = [];
     for (const [productId, pcs] of pcsByProduct(
       items.map((i) => ({ ...i, productId: i.variant.productId })),
@@ -379,12 +395,14 @@ export class OrdersService {
       });
     }
 
-    // 5. Lunas + masuk antrian dapur.
+    // 5. Disetujui → Diproses (lunas bila uang sudah diterima).
+    const now = new Date();
     await tx.order.update({
       where: { id },
       data: {
         status: 'PAID',
-        fulfillmentStatus: 'QUEUED',
+        fulfillmentStatus: 'PROCESSING',
+        completedAt: null,
         subtotal,
         discount,
         total,
@@ -394,8 +412,9 @@ export class OrdersService {
         changeAmount: payment.changeAmount,
         paymentRef: dto.paymentRef ?? null,
         approvedById: userId,
-        approvedAt: new Date(),
-        cashSessionId,
+        approvedAt: now,
+        paidAt: payLater ? null : now,
+        cashSessionId: payment.cashSessionId,
       },
     });
     await tx.orderLog.create({
@@ -405,13 +424,83 @@ export class OrdersService {
         fromStatus: 'PENDING',
         toStatus: 'PAID',
         userId,
-        reason: method.name,
+        reason: opts.logReason ?? (payLater ? `${method.name} · belum dibayar` : method.name),
       },
     });
   }
 
+  /**
+   * Catat uang diterima: hitung kembalian, QRIS kode unik (uang masuk = total + kode),
+   * dan cash wajib masuk shift kasir yang terbuka (PRD 5.14).
+   */
+  private async receivePayment(
+    tx: Tx,
+    p: {
+      total: number;
+      method: { type: PaymentType };
+      paidAmount?: number;
+      uniqueCode: number | null;
+    },
+  ) {
+    const payment = settlePayment(p.total, p.method.type, p.paidAmount);
+    if (p.method.type === 'QRIS' && p.uniqueCode) payment.paidAmount = p.total + p.uniqueCode;
+    let cashSessionId: string | null = null;
+    if (p.method.type === 'CASH') {
+      cashSessionId = await lockOpenCashSession(tx);
+      if (!cashSessionId) {
+        throw new BadRequestException(
+          'Belum ada shift kasir yang terbuka. Buka shift dulu di menu Keuangan → Shift Kasir.',
+        );
+      }
+    }
+    return { ...payment, cashSessionId };
+  }
+
+  /** Order COD / bayar-saat-ambil: uang sudah diterima → lunas (cash masuk shift yang terbuka). */
+  async markPaid(id: string, dto: MarkPaidDto, user: JwtPayload): Promise<OrderView> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM orders WHERE id = ${id} FOR UPDATE`;
+      const order = await tx.order.findUnique({ where: { id } });
+      if (!order) throw new NotFoundException('Order tidak ditemukan');
+      if (order.status !== 'PAID')
+        throw new BadRequestException('Order belum disetujui atau sudah tidak aktif');
+      if (order.paidAt) throw new BadRequestException('Order ini sudah lunas');
+      const methodId = dto.paymentMethodId ?? order.paymentMethodId;
+      if (!methodId) throw new BadRequestException('Pilih metode bayar');
+      const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
+      if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
+      const payment = await this.receivePayment(tx, {
+        total: order.total,
+        method,
+        paidAmount: dto.paidAmount,
+        uniqueCode: methodId === order.paymentMethodId ? order.uniqueCode : null,
+      });
+      await tx.order.update({
+        where: { id },
+        data: {
+          paymentMethodId: method.id,
+          paidAmount: payment.paidAmount,
+          changeAmount: payment.changeAmount,
+          cashSessionId: payment.cashSessionId,
+          paymentRef: dto.paymentRef ?? order.paymentRef,
+          paidAt: new Date(),
+        },
+      });
+      await tx.orderLog.create({
+        data: { orderId: id, action: 'PAYMENT_RECEIVED', userId: user.sub, reason: method.name },
+      });
+    });
+    this.realtime.financeChanged();
+    return this.afterWrite(id, user, 'order.updated');
+  }
+
   /** Tiap order diproses dalam transaksi sendiri; yang gagal tidak menggagalkan yang lain. */
-  async bulkApprove(orderIds: string[], paymentMethodId: string, user: JwtPayload) {
+  async bulkApprove(
+    orderIds: string[],
+    paymentMethodId: string,
+    user: JwtPayload,
+    payLater = false,
+  ) {
     const results: {
       id: string;
       orderNo: string;
@@ -431,13 +520,15 @@ export class OrdersService {
       try {
         await this.prisma.$transaction(async (tx) => {
           const locked = await this.lockPending(tx, id, user);
-          // Order pelanggan QR memakai cara bayar pilihannya sendiri.
+          // Order pelanggan memakai cara bayar pilihannya sendiri; COD online dibayar saat diterima.
+          const cod = locked.source === 'ONLINE' && locked.payAtCashier;
           await this.approveInTx(
             tx,
             id,
             {
               paymentMethodId: locked.paymentMethodId ?? paymentMethodId,
               paidAmount: locked.total,
+              payLater: payLater || cod,
             },
             user.sub,
           );
@@ -476,7 +567,7 @@ export class OrdersService {
       });
       if (!order) throw new NotFoundException('Order tidak ditemukan');
       if (order.status !== 'PAID')
-        throw new BadRequestException('Hanya order lunas yang bisa di-void');
+        throw new BadRequestException('Hanya order yang sudah disetujui yang bisa di-void');
 
       const changes: StockChange[] = [];
       for (const [productId, pcs] of pcsByProduct(
@@ -516,6 +607,9 @@ export class OrdersService {
     });
     const orderEvent = toOrderEvent(order);
     this.realtime.orderChanged(event, orderEvent);
+    // Order disetujui / di-void → halaman Diproses (staff & admin) dimuat ulang.
+    if (order.status === 'PAID' || order.status === 'VOIDED')
+      this.realtime.fulfillmentChanged(orderEvent);
     this.push.orderChanged(event, orderEvent, user?.sub ?? null);
     this.realtime.orderStatusForCustomer(order.publicToken, {
       status: order.status,
@@ -538,7 +632,7 @@ export class OrdersService {
     if (user) this.assertCanAccess(order, user);
     if (order.status !== 'PENDING') {
       throw new BadRequestException(
-        `Order sudah ${order.status === 'PAID' ? 'lunas' : 'tidak aktif'} (${order.status})`,
+        `Order sudah ${order.status === 'PAID' ? 'disetujui' : 'tidak aktif'} (${order.status})`,
       );
     }
     return order;

@@ -34,6 +34,8 @@ export interface CalcOrder {
   total: number;
   hppTotal: number;
   approvedAt: Date | null;
+  /** null pada order disetujui = belum dibayar (COD). */
+  paidAt: Date | null;
   createdAt: Date;
   paymentMethodId: string | null;
   paymentMethodName: string | null;

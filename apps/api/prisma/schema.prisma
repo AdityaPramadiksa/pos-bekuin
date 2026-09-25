@@ -63,11 +63,11 @@ enum OrderType {
   PREORDER
 }
 
+/// Alur kerja setelah order disetujui: Diproses → Selesai (label akhir tergantung jenis order:
+/// Dikirim untuk pesanan diantar, Siap diambil untuk pelanggan ambil sendiri, Selesai untuk order staff).
 enum FulfillmentStatus {
-  QUEUED
-  PREPARING
-  READY
-  HANDED_OVER
+  PROCESSING
+  DONE
 }
 
 enum PaymentType {
@@ -178,6 +178,8 @@ model Setting {
   freeDeliveryMin        Int      @default(0)
   /// Info area/jam antar untuk pelanggan, misal "Antar area Denpasar, jam 10–17".
   deliveryNote           String?
+  /// Kunci rahasia URL webhook notifikasi pembayaran (MacroDroid di HP admin), bisa diganti.
+  paymentWebhookKey      String?  @unique
   blockApproveOnLowStock Boolean  @default(true)
   paperWidthChars        Int      @default(32)
   updatedAt              DateTime @updatedAt
@@ -386,10 +388,11 @@ model Order {
   orderNo           String            @unique
   /// Token acak untuk halaman lacak pesanan pelanggan (/o/:publicToken).
   publicToken       String            @unique @default(cuid())
+  /// PAID = sudah disetujui (stok terpotong, omzet tercatat). Lunas tidaknya lihat `paidAt`.
   status            OrderStatus       @default(PENDING)
   source            OrderSource       @default(POS)
   type              OrderType         @default(TAKEAWAY)
-  fulfillmentStatus FulfillmentStatus @default(QUEUED)
+  fulfillmentStatus FulfillmentStatus @default(PROCESSING)
 
   customerId    String?
   customerName  String? // snapshot
@@ -423,21 +426,23 @@ model Order {
   approvedById  String?
   approvedAt    DateTime?
   cashSessionId String?
-  preparingAt   DateTime?
-  readyAt       DateTime?
-  handedOverAt  DateTime?
+  /// Waktu uang diterima. null pada order disetujui = belum dibayar (COD / bayar saat ambil).
+  paidAt        DateTime?
+  /// Waktu admin menekan Selesai (Dikirim / Siap diambil / Selesai).
+  completedAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  createdBy     User?          @relation("OrderCreator", fields: [createdById], references: [id])
-  approvedBy    User?          @relation("OrderApprover", fields: [approvedById], references: [id])
-  customer      Customer?      @relation(fields: [customerId], references: [id])
-  table         DiningTable?   @relation(fields: [tableId], references: [id])
-  batch         OrderBatch?    @relation(fields: [batchId], references: [id])
-  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
-  cashSession   CashSession?   @relation(fields: [cashSessionId], references: [id])
+  createdBy     User?                 @relation("OrderCreator", fields: [createdById], references: [id])
+  approvedBy    User?                 @relation("OrderApprover", fields: [approvedById], references: [id])
+  customer      Customer?             @relation(fields: [customerId], references: [id])
+  table         DiningTable?          @relation(fields: [tableId], references: [id])
+  batch         OrderBatch?           @relation(fields: [batchId], references: [id])
+  paymentMethod PaymentMethod?        @relation(fields: [paymentMethodId], references: [id])
+  cashSession   CashSession?          @relation(fields: [cashSessionId], references: [id])
   items         OrderItem[]
   logs          OrderLog[]
+  notifications PaymentNotification[]
 
   @@index([status, createdAt])
   @@index([status, approvedAt])
@@ -446,6 +451,7 @@ model Order {
   @@index([createdById, createdAt])
   @@index([tableId, status])
   @@index([fulfillmentStatus, status])
+  @@index([status, paidAt])
   @@map("orders")
 }
 
@@ -498,11 +504,12 @@ model StockMovement {
   refType      String? // ORDER, PURCHASE, PRODUCTION, OPNAME, ADJUST
   refId        String?
   note         String?
-  userId       String
+  /// null = otomatis oleh sistem (mis. QRIS terdeteksi dari notifikasi e-wallet)
+  userId       String?
   createdAt    DateTime      @default(now())
   ingredient   Ingredient?   @relation(fields: [ingredientId], references: [id])
   product      Product?      @relation(fields: [productId], references: [id])
-  user         User          @relation(fields: [userId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([ingredientId, createdAt])
   @@index([productId, createdAt])
@@ -678,4 +685,30 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+enum PaymentNotificationResult {
+  MATCHED // cocok dengan satu order → otomatis disetujui
+  UNMATCHED // nominal tidak cocok dengan order QRIS mana pun
+  AMBIGUOUS // lebih dari satu order dengan nominal sama
+  IGNORED // bukan notifikasi uang masuk / nominal tidak terbaca / duplikat
+  FAILED // cocok, tapi gagal disetujui (misal metode nonaktif)
+}
+
+/// Notifikasi uang masuk dari e-wallet (DANA) yang diteruskan MacroDroid di HP admin.
+model PaymentNotification {
+  id         String                    @id @default(cuid())
+  app        String?
+  title      String?
+  text       String
+  amount     Int?
+  result     PaymentNotificationResult
+  message    String?
+  orderId    String?
+  receivedAt DateTime                  @default(now())
+
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([receivedAt])
+  @@map("payment_notifications")
 }

@@ -7,6 +7,7 @@ import type {
   CustomerView,
   ProductAliasView,
   ProductionPlanView,
+  ProcessingView,
   OpnameView,
   ProductionView,
   PurchaseView,
@@ -176,14 +177,6 @@ export const useProductionPlan = (date: string) =>
     queryFn: () => get<ProductionPlanView>(`/reports/production-plan?date=${date}`),
   });
 
-export const usePackingList = (date: string) =>
-  useQuery({
-    queryKey: ['orders', 'packing', date],
-    queryFn: () => get<OrderListResponse>(`/orders/packing-list?date=${date}`),
-  });
-
-// ───────────────────────────── Keuangan & laporan ─────────────────────────────
-
 export const useExpenseCategories = (all = false) =>
   useQuery({
     queryKey: ['finance', 'expense-categories', all],
@@ -220,4 +213,12 @@ export const useReport = <T>(type: ReportType, params: { from: string; to: strin
       ),
     // Saat ganti periode, tampilan lama tetap (redup) sampai data baru datang — hanya untuk jenis yang sama.
     placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === type ? prev : undefined),
+  });
+
+/** Order yang sedang diproses + yang selesai hari ini (halaman Diproses). */
+export const useProcessing = () =>
+  useQuery({
+    queryKey: ['processing'],
+    queryFn: async () => (await api.get<ProcessingView>('/processing')).data,
+    refetchInterval: 60_000, // cadangan bila koneksi realtime putus
   });

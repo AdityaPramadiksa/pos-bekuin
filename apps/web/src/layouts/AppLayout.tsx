@@ -24,17 +24,18 @@ interface NavItem {
   end?: boolean;
 }
 
-// PRD bagian 4: Staff 3 tab, Admin 5 tab.
+// PRD bagian 4 (+ revisi 2.3: tab Diproses).
 const NAV: Record<Role, NavItem[]> = {
   STAFF: [
     { to: '/staff/order', label: 'Order Baru', icon: ShoppingBasket },
     { to: '/staff/history', label: 'History', icon: History },
-    { to: '/staff/dapur', label: 'Dapur', icon: ChefHat },
+    { to: '/staff/diproses', label: 'Diproses', icon: ChefHat },
     { to: '/staff/akun', label: 'Akun', icon: UserRound },
   ],
   ADMIN: [
-    { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
+    { to: '/admin', label: 'Beranda', icon: LayoutDashboard, end: true },
     { to: '/admin/approval', label: 'Approval', icon: ClipboardCheck },
+    { to: '/admin/diproses', label: 'Diproses', icon: ChefHat },
     { to: '/admin/order', label: 'Order', icon: BarChart3 },
     { to: '/admin/stok', label: 'Stok', icon: Package },
     { to: '/admin/lainnya', label: 'Lainnya', icon: Menu },

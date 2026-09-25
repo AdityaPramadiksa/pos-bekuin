@@ -38,7 +38,9 @@ export function ApprovalPage() {
     <>
       <PageHeader
         title="Approval"
-        subtitle={all.data ? `${all.data.total} order menunggu` : 'Antrian order'}
+        subtitle={
+          all.data ? `${all.data.total} order masuk · proses → pindah ke Diproses` : 'Order masuk'
+        }
       />
       <div className="mx-auto max-w-2xl space-y-3 p-4 pb-40 md:p-6 md:pb-40">
         <Chips
@@ -60,7 +62,7 @@ export function ApprovalPage() {
         ) : items.length === 0 ? (
           <EmptyState
             title="Tidak ada order menunggu"
-            description="Order baru dari staff atau pelanggan QR akan muncul di sini dengan bunyi notifikasi."
+            description="Order baru dari staff atau pelanggan muncul di sini dengan bunyi notifikasi. QRIS yang terdeteksi dari notifikasi DANA langsung pindah ke Diproses."
           />
         ) : (
           [...groups]
