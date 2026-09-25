@@ -395,6 +395,8 @@ model Order {
   paymentRef      String?
   /// Bukti bayar yang diunggah pelanggan QR (screenshot QRIS/transfer).
   paymentProofUrl String?
+  /// Pelanggan QR memilih bayar di kasir (bila mode QRIS_OR_CASHIER).
+  payAtCashier    Boolean @default(false)
   reason          String? // alasan reject / void / batal
 
   createdById   String? // null = dibuat pelanggan lewat QR
@@ -421,6 +423,8 @@ model Order {
   @@index([deliveryDate, status])
   @@index([source, status])
   @@index([createdById, createdAt])
+  @@index([tableId, status])
+  @@index([fulfillmentStatus, status])
   @@map("orders")
 }
 

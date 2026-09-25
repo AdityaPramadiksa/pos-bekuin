@@ -9,6 +9,13 @@ import { LocalDiskStorage } from './uploads/storage';
 export function configureApp(app: NestExpressApplication) {
   const config = app.get(ConfigService<Env, true>);
 
+  // IP asli pelanggan (untuk rate limit) saat API berada di belakang proxy.
+  const trustProxy = config.get('TRUST_PROXY', { infer: true });
+  app.set(
+    'trust proxy',
+    /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy === 'false' ? false : trustProxy,
+  );
+
   // cross-origin: foto menu/QRIS boleh ditampilkan oleh web yang beda domain dengan API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({

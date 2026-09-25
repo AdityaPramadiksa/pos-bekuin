@@ -3,6 +3,7 @@ export * from './format';
 export * from './hours';
 export * from './menu';
 export * from './orders';
+export * from './public';
 export * from './reports';
 export * from './schemas';
 export * from './stock';

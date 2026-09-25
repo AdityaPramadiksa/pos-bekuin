@@ -43,7 +43,7 @@ pnpm dev            # API :3000, web :5173
 | 0 | Setup, skema DB, seeder, auth, layout, spike printer | ✅ Selesai |
 | 1 | Pengguna, Menu (CRUD), Metode Bayar, Pengaturan Toko | ✅ Selesai |
 | 2 | POS & Approval (bisa jualan) | ✅ Selesai |
-| 3 | Self-order QR meja & antrian dapur | ⏳ Berikutnya |
+| 3 | Self-order QR meja & antrian dapur | ✅ Selesai |
 | 4–8 | Resep/HPP, stok, pre-order WA, keuangan & laporan, deploy | |
 
 Checklist lengkap ada di [PRD.md bagian 10](PRD.md#10-task-breakdown).

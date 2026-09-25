@@ -68,3 +68,6 @@ export function errorMessage(error: unknown): string {
   }
   return 'Terjadi kesalahan';
 }
+
+/** Klien untuk endpoint pelanggan QR: tanpa token login & tanpa auto-refresh. */
+export const publicApi = axios.create({ baseURL: API_URL });

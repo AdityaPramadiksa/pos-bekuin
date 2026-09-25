@@ -43,7 +43,7 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         label: 'Meja & QR',
         description: 'Kelola meja, cetak QR self-order',
         icon: QrCode,
-        sprint: 'Sprint 3',
+        to: '/admin/lainnya/meja',
       },
       {
         label: 'Bahan, Resep & HPP',

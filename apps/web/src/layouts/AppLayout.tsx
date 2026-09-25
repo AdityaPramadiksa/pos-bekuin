@@ -1,6 +1,7 @@
 import type { Role } from '@bekuin/shared';
 import {
   BarChart3,
+  ChefHat,
   ClipboardCheck,
   History,
   LayoutDashboard,
@@ -28,6 +29,7 @@ const NAV: Record<Role, NavItem[]> = {
   STAFF: [
     { to: '/staff/order', label: 'Order Baru', icon: ShoppingBasket },
     { to: '/staff/history', label: 'History', icon: History },
+    { to: '/staff/dapur', label: 'Dapur', icon: ChefHat },
     { to: '/staff/akun', label: 'Akun', icon: UserRound },
   ],
   ADMIN: [

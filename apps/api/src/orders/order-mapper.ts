@@ -47,6 +47,7 @@ export function toOrderView(order: OrderRow | OrderDetailRow, isAdmin: boolean):
     changeAmount: order.changeAmount,
     paymentRef: order.paymentRef,
     paymentProofUrl: order.paymentProofUrl,
+    payAtCashier: order.payAtCashier,
     reason: order.reason,
     createdBy: order.createdBy,
     approvedBy: order.approvedBy,

@@ -71,7 +71,13 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         ? discountInput
         : Math.round((subtotal * Math.min(discountInput, 100)) / 100);
   const total = Math.max(0, subtotal - discount);
-  const method = methods.data?.find((m) => m.id === methodId) ?? null;
+  // Order QR dengan bukti bayar: QRIS terpilih otomatis (admin tetap bisa mengganti).
+  const defaultMethodId =
+    order.paymentProofUrl && !order.payAtCashier
+      ? (methods.data?.find((m) => m.type === 'QRIS')?.id ?? null)
+      : null;
+  const selectedMethodId = methodId ?? defaultMethodId;
+  const method = methods.data?.find((m) => m.id === selectedMethodId) ?? null;
   const isCash = method?.type === 'CASH';
   const change = isCash && paid !== '' ? paid - total : 0;
   const itemCount = Object.values(qty).filter((q) => q > 0).length;
@@ -93,7 +99,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         .map((i) => ({ id: i.id, qty: qty[i.id] ?? 0 }));
       return (
         await api.post<OrderView>(`/orders/${order.id}/approve`, {
-          paymentMethodId: methodId,
+          paymentMethodId: selectedMethodId,
           paidAmount: isCash ? paid : undefined,
           discount,
           paymentRef: paymentRef.trim() || null,
@@ -319,6 +325,29 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         </div>
       </div>
 
+      {order.paymentProofUrl && (
+        <a
+          href={assetUrl(order.paymentProofUrl)}
+          target="_blank"
+          rel="noreferrer"
+          className="block rounded-xl bg-green-50 p-3"
+        >
+          <p className="mb-2 text-xs font-semibold text-green-900">
+            Bukti bayar dari pelanggan — cocokkan dengan mutasi QRIS/rekening sebelum approve
+          </p>
+          <img
+            src={assetUrl(order.paymentProofUrl)}
+            alt="Bukti bayar"
+            className="max-h-72 rounded-lg border bg-white"
+          />
+        </a>
+      )}
+      {order.payAtCashier && (
+        <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          Pelanggan memilih <b>bayar di kasir</b>.
+        </p>
+      )}
+
       {/* Metode bayar */}
       <div>
         <p className="mb-2 text-sm font-medium">Metode bayar</p>
@@ -332,7 +361,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
               }}
               className={cn(
                 'rounded-xl border px-2 py-3 text-sm font-semibold',
-                methodId === m.id
+                selectedMethodId === m.id
                   ? 'border-brand-700 bg-brand-50 text-brand-700'
                   : 'border-stone-300 bg-white',
               )}
@@ -380,18 +409,6 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
               alt="QRIS toko"
               className="mx-auto max-h-64 rounded-xl border"
             />
-          )}
-          {order.paymentProofUrl && (
-            <a href={assetUrl(order.paymentProofUrl)} target="_blank" rel="noreferrer">
-              <p className="mb-1 text-xs font-semibold text-stone-500">
-                Bukti bayar dari pelanggan — cek mutasi sebelum approve
-              </p>
-              <img
-                src={assetUrl(order.paymentProofUrl)}
-                alt="Bukti bayar"
-                className="max-h-64 rounded-xl border"
-              />
-            </a>
           )}
           <Field label="Referensi (opsional)">
             <Input

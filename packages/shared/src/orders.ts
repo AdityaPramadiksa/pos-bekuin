@@ -51,6 +51,7 @@ export interface OrderView {
   changeAmount: number | null;
   paymentRef: string | null;
   paymentProofUrl: string | null;
+  payAtCashier: boolean;
   reason: string | null;
   createdBy: { id: string; name: string } | null;
   approvedBy: { id: string; name: string } | null;
@@ -105,3 +106,11 @@ export const STOCK_UNIT_LABEL: Record<'GRAM' | 'ML' | 'PCS', string> = {
   ML: 'ml',
   PCS: 'pcs',
 };
+
+export const FULFILLMENT_FLOW = ['QUEUED', 'PREPARING', 'READY', 'HANDED_OVER'] as const;
+
+/** Langkah berikutnya di antrian dapur (null = sudah selesai). */
+export function nextFulfillment(status: (typeof FULFILLMENT_FLOW)[number]) {
+  const i = FULFILLMENT_FLOW.indexOf(status);
+  return i >= 0 && i < FULFILLMENT_FLOW.length - 1 ? FULFILLMENT_FLOW[i + 1] : null;
+}

@@ -11,6 +11,8 @@ const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default('15m'),
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
   UPLOAD_DIR: z.string().default('./uploads'),
+  /** Express trust proxy: 'loopback' (dev, proxy Vite), angka hop (mis. 1 di Railway), atau 'false'. */
+  TRUST_PROXY: z.string().default('loopback'),
 });
 
 export type Env = z.infer<typeof envSchema>;

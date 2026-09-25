@@ -8,7 +8,7 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "pnpm --filter @bekuin/shared build && pnpm --parallel --filter @bekuin/api --filter @bekuin/web dev",
+    "dev": "pnpm --filter @bekuin/shared build && pnpm --parallel --filter @bekuin/shared --filter @bekuin/api --filter @bekuin/web dev",
     "dev:api": "pnpm --filter @bekuin/api dev",
     "dev:web": "pnpm --filter @bekuin/web dev",
     "build": "pnpm -r build",

@@ -14,7 +14,7 @@ description: Aturan self-order QR meja (role pelanggan tanpa login), endpoint /p
 - `POST /public/orders`:
   - Validasi: toko buka, meja aktif, item ≥ 1, qty 1–50 per item, varian ada & aktif & kategorinya tampil ke pelanggan, produk tidak `isAvailable = false`.
   - **Harga dari DB**, total dihitung server; tolak bila total > `qrMaxOrderTotal`.
-  - Batas: 5 order / 10 menit per (qrToken + IP), maksimal 3 order PENDING per meja.
+  - Batas: 10 percobaan / 10 menit per (qrToken + IP) termasuk yang gagal validasi (`PublicThrottlerGuard`), maksimal 3 order PENDING per meja (dikunci `FOR UPDATE` pada baris meja).
   - Simpan `source = QR_TABLE`, `type = DINE_IN | TAKEAWAY`, `tableId`, `createdById = null`, `customerName` wajib, `customerPhone` opsional (tautkan/buat `customers` bila diisi), `order_logs` dengan `userId = null`.
   - Balikan hanya `{ orderNo, publicToken, total }`.
 - `POST /public/orders/:publicToken/payment-proof`: hanya saat PENDING; gambar jpg/png/webp ≤ 5 MB; simpan `paymentProofUrl`; emit `order.updated` ke `admins`.

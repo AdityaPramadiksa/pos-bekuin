@@ -138,11 +138,12 @@ Ada tiga peran. **Staff** membuat order, **Admin** memegang semua keputusan uang
 
 Di HP, navigasi memakai bottom tab bar. Di tablet/desktop (mode kasir), navigasi pindah ke sidebar dan layar POS menjadi dua kolom.
 
-**Menu Staff (3 tab)**
+**Menu Staff (4 tab)**
 
 1. **Order Baru (POS):** mode **Cepat** (stepper) dan **Tempel Pesan** (paste WhatsApp).
-2. **History:** order milik sendiri, filter status dan tanggal kirim, dikelompokkan per pelanggan. Sub-tab **Antrian Dapur**.
-3. **Akun:** profil, ganti password, logout.
+2. **History:** order milik sendiri, filter status dan tanggal kirim, dikelompokkan per pelanggan.
+3. **Dapur:** antrian dapur (Antre → Disiapkan → Siap → Diserahkan).
+4. **Akun:** profil, ganti password, logout.
 
 **Menu Admin (5 tab)**
 
@@ -292,7 +293,7 @@ sequenceDiagram
 **Aturan dan keamanan**
 
 - Harga, stok, dan total **selalu dihitung ulang di server**. Isian harga dari klien diabaikan.
-- Rate limit: maksimal 5 order per 10 menit per meja + IP, dan maksimal 3 order PENDING terbuka per meja.
+- Rate limit: maksimal 10 percobaan pesan per 10 menit per meja + IP (termasuk yang gagal validasi), dan maksimal 3 order PENDING terbuka per meja.
 - `qrToken` berupa 12 karakter acak (bukan nomor meja), sehingga tidak bisa ditebak. Admin bisa **ganti QR** (rotate) bila QR lama disalahgunakan.
 - Pelanggan hanya bisa membatalkan order miliknya selama PENDING dan belum ada bukti bayar.
 - Bukti bayar: gambar JPG/PNG/WebP maksimal 5 MB, dikompres di klien sebelum diunggah.
@@ -314,7 +315,7 @@ sequenceDiagram
 - Setiap meja punya `qrToken` acak. Tombol: **Lihat QR**, **Unduh PNG**, **Ganti QR** (token baru; QR lama langsung tidak berlaku), dan **Cetak semua QR**.
 - Cetak semua QR menghasilkan halaman A4 siap print: kartu per meja berisi logo, "Scan untuk pesan", nomor meja, dan QR. Bisa juga dicetak ke printer 58mm.
 
-**Antrian Dapur (Staff > History > Dapur, Admin > Order > Antrian Dapur)**
+**Antrian Dapur (Staff > tab Dapur, Admin > Order > Dapur)**
 
 - Kolom **Antre / Disiapkan / Siap**. Kartu berisi nomor order, meja atau nama, item (Siap Makan diberi tanda "Goreng"), dan waktu sejak dibayar.
 - Tap kartu untuk memajukan status. Waktu `preparingAt`, `readyAt`, dan `handedOverAt` tercatat untuk laporan kecepatan layanan.
@@ -647,16 +648,16 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Users | `GET/POST/PATCH /users`, `POST /users/:id/reset-password` | Admin | CRUD user (nonaktif = soft delete), reset password ✅ |
 | Settings | `GET /settings` (login), `PATCH /settings` (admin) | Login / Admin | Info toko, struk, QRIS, jam buka, self-order ✅ |
 | Uploads | `POST /uploads?purpose=menu\|logo\|qris\|receipt` | Admin | Gambar (validasi isi file & ukuran) ✅ |
-| Tables | `GET/POST/PATCH/DELETE /tables`, `POST /tables/:id/rotate-qr`, `GET /tables/:id/qr.png`, `GET /tables/qr-sheet` | Admin | Meja & QR |
+| Tables | `GET/POST/PATCH /tables`, `POST /tables/:id/rotate-qr` (QR dibuat di browser) | Login (baca) / Admin | Meja & QR ✅ |
 | Menu | `GET/POST/PATCH /sales-categories` | Login (baca) / Admin | Kategori + tampil ke pelanggan ✅ |
 | Menu | `GET/POST/PATCH/DELETE /products`, `PATCH /products/:id/availability` | Admin | Produk, foto, toggle habis (DELETE = nonaktifkan) ✅ |
 | Menu | `POST /products/:id/variants`, `PATCH/DELETE /products/:id/variants/:variantId` | Admin | Varian (kemasan, HPP & margin di Sprint 4) ✅ |
 | Payment | `GET/POST/PATCH /payment-methods` | Login (baca) / Admin | Metode bayar ✅ |
 | Katalog | `GET /catalog` | Login | Menu aktif + varian + stok tersedia (layar POS) ✅ |
-| **Publik** | `GET /public/tables/:qrToken/menu` | Publik | Info toko, meja, status buka, menu pelanggan, metode bayar |
-| **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, metode. Balikan `orderNo`, `publicToken` |
-| **Publik** | `GET /public/orders/:publicToken` | Publik | Status + item + total + QRIS |
-| **Publik** | `POST /public/orders/:publicToken/payment-proof`, `POST /public/orders/:publicToken/cancel` | Publik | Unggah bukti, batal |
+| **Publik** | `GET /public/tables/:qrToken/menu` | Publik | Info toko, meja, status buka, menu pelanggan ✅ |
+| **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, `payAtCashier`. Balikan `orderNo`, `publicToken`, `total` ✅ |
+| **Publik** | `GET /public/orders/:publicToken` | Publik | Status + item + total + QRIS ✅ |
+| **Publik** | `POST /public/orders/:publicToken/payment-proof`, `POST /public/orders/:publicToken/cancel` | Publik | Unggah bukti, batal ✅ |
 | Orders | `POST /orders` | Login | Buat order PENDING (POS) ✅ |
 | Orders | `GET /orders?status=&source=&dateField=&from=&to=&q=`, `GET /orders/:id` | Login | Staff hanya melihat miliknya ✅ |
 | Orders | `PATCH /orders/:id`, `POST /orders/:id/cancel` | Login | Hanya saat PENDING ✅ |
@@ -664,7 +665,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Orders | `POST /orders/bulk-approve` | Admin | Body: `orderIds[]`, `paymentMethodId`; hasil per order |
 | Orders | `POST /orders/:id/reject` ✅, `POST /orders/:id/void` | Admin | Wajib alasan |
 | Orders | `GET /orders/:id/receipt`, `/label`, `/invoice-text` | Admin | Data struk, label, teks tagihan |
-| Kitchen | `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` | Login | Antrian dapur, ubah status penyiapan |
+| Kitchen | `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` | Login | Antrian dapur, ubah status penyiapan ✅ |
 | Import | `POST /orders/import/preview`, `POST /orders/import` | Login | Tempel pesan WA |
 | Customers | `GET/POST/PATCH /customers`, `GET /customers/suggest?q=`, `POST /customers/:id/merge` | Login / Admin (merge) | Pelanggan |
 | Alias | `GET/POST/DELETE /product-aliases` | Admin (POST juga Staff) | Alias produk |
@@ -699,7 +700,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 0 | Setup & fondasi | Monorepo, DB, skema lengkap, seeder, auth, layout, spike printer ✅ |
 | 1 | Pengguna, Menu, Pengaturan | CRUD user, CRUD menu (kategori/produk/varian/foto/habis), metode bayar, pengaturan toko ✅ |
 | 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) ✅ |
-| 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur |
+| 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur ✅ |
 | 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve |
 | 5 | Stok lengkap | Stok masuk, produksi, mutasi, opname, penyesuaian/waste, void |
 | 6 | Pre-order massal | Tempel pesan WA, pelanggan, rekap produksi, packing, tagihan, approve massal |
@@ -757,19 +758,21 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Test e2e (9 skenario): order campuran → approve → stok, kemasan, HPP, kembalian benar; staff tidak bisa lihat/approve order orang lain; **dua approve bersamaan tidak membuat stok minus**
 - [ ] **Uji coba jualan nyata 1 hari** (oleh pemilik toko)
 
-### Sprint 3: Self-Order QR Meja & Antrian Dapur
+### Sprint 3: Self-Order QR Meja & Antrian Dapur ✅
 
-- [ ] TablesModule: CRUD meja, rotate QR, `GET /tables/:id/qr.png` (lib `qrcode`), lembar cetak A4 semua QR
-- [ ] PublicModule: `GET /public/tables/:qrToken/menu` (cek meja aktif, toko buka, jam buka, self-order aktif)
-- [ ] `POST /public/orders`: validasi item & hitung ulang harga di server, batas total, rate limit per meja + IP, maks 3 PENDING per meja
-- [ ] `GET /public/orders/:publicToken`, unggah bukti bayar, batal oleh pelanggan
-- [ ] Gateway: room `order:<publicToken>` untuk status realtime; room `kitchen`
-- [ ] KitchenModule: `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` + timestamp
-- [ ] FE Pelanggan: halaman menu (mobile-first, foto, tab kategori, label Habis, toko tutup), keranjang per meja, checkout, halaman QRIS + total + unggah bukti, lacak pesanan realtime, pesan lagi
-- [ ] FE Admin: label "QR · Meja", lihat bukti bayar, tanda order kedaluwarsa; halaman Meja & QR
-- [ ] FE Antrian Dapur (staff & admin): kolom Antre/Disiapkan/Siap, tap untuk maju
-- [ ] Test e2e: scan QR → pesan → unggah bukti → admin approve QRIS → dapur → pelanggan melihat "Selesai"
-- [ ] Uji coba dengan 2–3 pelanggan sungguhan (HP Android & iPhone)
+- [x] TablesModule: CRUD meja, token QR acak 12 karakter, ganti QR (token lama langsung 404); staff melihat meja tanpa token
+- [x] Admin Meja & QR: QR dibuat di browser (`qrcode`) dari alamat web / `VITE_PUBLIC_WEB_URL`, unduh PNG, buka link, peringatan bila masih `localhost`; lembar cetak A4 `/cetak/qr-meja`
+- [x] PublicModule: `GET /public/tables/:qrToken/menu` (meja aktif, toko buka + jam buka WITA + self-order aktif, hanya kategori yang tampil ke pelanggan, stok sebagai `available` saja)
+- [x] `POST /public/orders`: harga dihitung server, batas total, maks 3 PENDING per meja (dikunci `FOR UPDATE`), rate limit 10 percobaan/10 menit per meja+IP (`PublicThrottlerGuard`, `TRUST_PROXY`), balikan hanya nomor + token lacak + total
+- [x] `GET /public/orders/:publicToken` tanpa id/HPP/data user, unggah bukti bayar (validasi isi gambar), batal oleh pelanggan (hanya sebelum ada bukti), opsi "bayar di kasir" (mode `QRIS_OR_CASHIER`, migrasi `payAtCashier`)
+- [x] Gateway: room `order:<publicToken>` (divalidasi ke DB) untuk status realtime; room `kitchen`
+- [x] KitchenModule: `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` (staff maju 1 langkah, admin boleh mundur) + stempel waktu
+- [x] FE Pelanggan: menu mobile-first (kategori, Tambah/stepper, Habis, toko tutup), keranjang per meja, checkout (nama, WA, makan di sini/bawa pulang, catatan, QRIS/kasir), halaman lacak realtime (QRIS + total + simpan gambar + kirim bukti + batal + timeline + pesan lagi)
+- [x] FE Admin: label "QR · Meja", badge bukti bayar & bayar di kasir, bukti tampil di dialog bayar + QRIS terpilih otomatis
+- [x] FE Antrian Dapur (tab Dapur staff & Admin → Order → Dapur): kolom Antre/Disiapkan/Siap, tanda "Goreng" untuk Siap Makan, peringatan > 15 menit
+- [x] Test e2e (8 skenario): menu publik, validasi & batas, pesan → bukti → approve QRIS → dapur → Selesai, maks PENDING, rate limit, toko tutup, ganti QR
+- [x] Simulasi browser 3 peran (pelanggan, admin, dapur) dengan update realtime di setiap langkah
+- [ ] Uji coba dengan 2–3 pelanggan sungguhan (HP Android & iPhone) setelah online HTTPS
 
 ### Sprint 4: Bahan, Resep, HPP
 
