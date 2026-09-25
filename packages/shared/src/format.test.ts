@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { businessDateKey, formatOrderNo, formatRupiah, normalizeName } from './format';
+import {
+  businessDateKey,
+  formatOrderNo,
+  formatRupiah,
+  normalizeName,
+  quickCashAmounts,
+} from './format';
 
 describe('format', () => {
   it('memformat rupiah tanpa desimal', () => {
@@ -15,5 +21,13 @@ describe('format', () => {
 
   it('menormalkan nama', () => {
     expect(normalizeName('  Bu   Sri ')).toBe('bu sri');
+  });
+});
+
+describe('quickCashAmounts', () => {
+  it('uang pas lalu pecahan umum di atas total', () => {
+    expect(quickCashAmounts(104000)).toEqual([104000, 110000, 120000, 150000]);
+    expect(quickCashAmounts(22000)).toEqual([22000, 30000, 40000, 50000]);
+    expect(quickCashAmounts(50000)).toEqual([50000, 60000, 100000]);
   });
 });

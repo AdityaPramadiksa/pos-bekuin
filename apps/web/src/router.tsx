@@ -1,10 +1,11 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import { AdminApprovalPage } from '@/features/admin/AdminApprovalPage';
 import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
 import { AdminMorePage } from '@/features/admin/AdminMorePage';
-import { AdminOrdersPage } from '@/features/admin/AdminOrdersPage';
-import { AdminStockPage } from '@/features/admin/AdminStockPage';
+import { ApprovalPage } from '@/features/admin/approval/ApprovalPage';
 import { MenuPage } from '@/features/admin/menu/MenuPage';
+import { AdminNewOrderPage } from '@/features/admin/orders/AdminNewOrderPage';
+import { OrdersPage } from '@/features/admin/orders/OrdersPage';
+import { StockPage } from '@/features/admin/stock/StockPage';
 import { PaymentMethodsPage } from '@/features/admin/settings/PaymentMethodsPage';
 import { SettingsPage } from '@/features/admin/settings/SettingsPage';
 import { UsersPage } from '@/features/admin/users/UsersPage';
@@ -54,9 +55,10 @@ export const router = createBrowserRouter([
             element: <AppLayout role="ADMIN" />,
             children: [
               { index: true, element: <AdminDashboardPage /> },
-              { path: 'approval', element: <AdminApprovalPage /> },
-              { path: 'order', element: <AdminOrdersPage /> },
-              { path: 'stok', element: <AdminStockPage /> },
+              { path: 'approval', element: <ApprovalPage /> },
+              { path: 'order', element: <OrdersPage /> },
+              { path: 'order/baru', element: <AdminNewOrderPage /> },
+              { path: 'stok', element: <StockPage /> },
               { path: 'lainnya', element: <AdminMorePage /> },
               { path: 'lainnya/menu', element: <MenuPage /> },
               { path: 'lainnya/pengguna', element: <UsersPage /> },

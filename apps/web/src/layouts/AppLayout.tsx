@@ -11,6 +11,8 @@ import {
   UserRound,
 } from 'lucide-react';
 import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useOrders } from '@/lib/queries';
+import { useRealtime } from '@/lib/useRealtime';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
 
@@ -51,9 +53,23 @@ export function RequireAuth({ roles }: { roles?: Role[] }) {
 }
 
 /** Bottom tab bar di HP, sidebar di tablet/desktop (mode POS kasir). */
+/** Jumlah order PENDING untuk badge tab Approval (admin). */
+function usePendingCount(enabled: boolean) {
+  const pending = useOrders({ status: 'PENDING', limit: 1 }, { refetchInterval: 60_000 });
+  return enabled ? (pending.data?.total ?? 0) : 0;
+}
+
 export function AppLayout({ role }: { role: Role }) {
   const items = NAV[role];
   const user = useAuthStore((s) => s.user);
+  useRealtime();
+  const pendingCount = usePendingCount(role === 'ADMIN');
+  const badge = (to: string) =>
+    to === '/admin/approval' && pendingCount > 0 ? (
+      <span className="bg-brand-700 absolute -top-1 -right-2 min-w-4 rounded-full px-1 text-center text-[10px] leading-4 font-bold text-white md:static md:ml-auto md:text-xs">
+        {pendingCount}
+      </span>
+    ) : null;
 
   return (
     <div className="flex min-h-dvh">
@@ -79,6 +95,7 @@ export function AppLayout({ role }: { role: Role }) {
             >
               <item.icon className="size-5" />
               {item.label}
+              {badge(item.to)}
             </NavLink>
           ))}
         </nav>
@@ -102,7 +119,10 @@ export function AppLayout({ role }: { role: Role }) {
                   )
                 }
               >
-                <item.icon className="size-5" />
+                <span className="relative">
+                  <item.icon className="size-5" />
+                  {badge(item.to)}
+                </span>
                 {item.label}
               </NavLink>
             </li>

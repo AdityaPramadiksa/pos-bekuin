@@ -1,0 +1,73 @@
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { CurrentUser, type JwtPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { SettingsService } from '../settings/settings.service';
+import {
+  ApproveOrderDto,
+  CreateOrderDto,
+  ListOrdersDto,
+  OptionalReasonDto,
+  ReasonDto,
+  UpdateOrderDto,
+} from './dto/order.dto';
+import { OrdersService } from './orders.service';
+
+@ApiTags('Orders')
+@ApiBearerAuth()
+@Controller('orders')
+export class OrdersController {
+  constructor(
+    private readonly orders: OrdersService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  @Post()
+  create(@Body() dto: CreateOrderDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.createFromStaff(dto, user);
+  }
+
+  @Get()
+  list(@Query() query: ListOrdersDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.list(query, user);
+  }
+
+  @Get(':id')
+  get(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    return this.orders.get(id, user);
+  }
+
+  /** Edit selama PENDING (staff: miliknya sendiri). */
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateOrderDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.update(id, dto, user);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  cancel(@Param('id') id: string, @Body() dto: OptionalReasonDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.cancel(id, dto.reason, user);
+  }
+
+  @Roles('ADMIN')
+  @Post(':id/approve')
+  @HttpCode(200)
+  approve(@Param('id') id: string, @Body() dto: ApproveOrderDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.approve(id, dto, user);
+  }
+
+  @Roles('ADMIN')
+  @Post(':id/reject')
+  @HttpCode(200)
+  reject(@Param('id') id: string, @Body() dto: ReasonDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.reject(id, dto.reason, user);
+  }
+
+  /** Data siap cetak: order + info toko. */
+  @Roles('ADMIN')
+  @Get(':id/receipt')
+  async receipt(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    const [order, store] = await Promise.all([this.orders.get(id, user), this.settings.get()]);
+    return { order, store };
+  }
+}

@@ -657,12 +657,12 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, metode. Balikan `orderNo`, `publicToken` |
 | **Publik** | `GET /public/orders/:publicToken` | Publik | Status + item + total + QRIS |
 | **Publik** | `POST /public/orders/:publicToken/payment-proof`, `POST /public/orders/:publicToken/cancel` | Publik | Unggah bukti, batal |
-| Orders | `POST /orders` | Login | Buat order PENDING (POS) |
-| Orders | `GET /orders?status=&source=&deliveryDate=&fulfillment=`, `GET /orders/:id` | Login | Staff hanya melihat miliknya |
-| Orders | `PATCH /orders/:id`, `POST /orders/:id/cancel` | Login | Hanya saat PENDING |
-| Orders | `POST /orders/:id/approve` | Admin | Body: paymentMethodId, paidAmount, discount, paymentRef |
+| Orders | `POST /orders` | Login | Buat order PENDING (POS) ✅ |
+| Orders | `GET /orders?status=&source=&dateField=&from=&to=&q=`, `GET /orders/:id` | Login | Staff hanya melihat miliknya ✅ |
+| Orders | `PATCH /orders/:id`, `POST /orders/:id/cancel` | Login | Hanya saat PENDING ✅ |
+| Orders | `POST /orders/:id/approve` | Admin | Body: paymentMethodId, paidAmount, discount, paymentRef, items (koreksi qty) ✅ |
 | Orders | `POST /orders/bulk-approve` | Admin | Body: `orderIds[]`, `paymentMethodId`; hasil per order |
-| Orders | `POST /orders/:id/reject`, `POST /orders/:id/void` | Admin | Wajib alasan |
+| Orders | `POST /orders/:id/reject` ✅, `POST /orders/:id/void` | Admin | Wajib alasan |
 | Orders | `GET /orders/:id/receipt`, `/label`, `/invoice-text` | Admin | Data struk, label, teks tagihan |
 | Kitchen | `GET /kitchen/queue`, `PATCH /orders/:id/fulfillment` | Login | Antrian dapur, ubah status penyiapan |
 | Import | `POST /orders/import/preview`, `POST /orders/import` | Login | Tempel pesan WA |
@@ -670,7 +670,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Alias | `GET/POST/DELETE /product-aliases` | Admin (POST juga Staff) | Alias produk |
 | Ingredients | `GET/POST/PATCH/DELETE /ingredients` | Admin | Bahan baku |
 | Recipes | `GET/POST/PATCH /recipes`, `GET /recipes/:id/cost` | Admin | Resep + rincian biaya |
-| Stock | `GET /stock/products`, `GET /stock/ingredients`, `GET /stock/movements`, `POST /stock/adjust` | Admin | Stok, mutasi, penyesuaian/waste |
+| Stock | `GET /stock/products`, `GET /stock/ingredients`, `GET /stock/movements`, `POST /stock/adjust` | Admin | Stok, mutasi, penyesuaian/waste ✅ |
 | Purchases | `GET/POST /purchases` | Admin | Stok masuk |
 | Production | `POST /productions/preview`, `POST /productions` | Admin | Produksi |
 | Opname | `GET/POST /opnames`, `PATCH /opnames/:id`, `POST /opnames/:id/finalize` | Admin | Stok opname |
@@ -681,7 +681,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Reports | `GET /reports/sales`, `/profit-loss`, `/product-profit`, `/cashflow`, `/top-products`, `/stock-movements`, `/daily-closing`, `/qr-service` | Admin | Query `from`, `to`, `groupBy` |
 | Reports | `GET /reports/:type/export?format=csv|xlsx` | Admin | Export |
 
-✅ = sudah diimplementasikan (Sprint 0–1).
+✅ = sudah diimplementasikan.
 
 **Event Socket.IO**
 
@@ -698,7 +698,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | --- | --- | --- |
 | 0 | Setup & fondasi | Monorepo, DB, skema lengkap, seeder, auth, layout, spike printer ✅ |
 | 1 | Pengguna, Menu, Pengaturan | CRUD user, CRUD menu (kategori/produk/varian/foto/habis), metode bayar, pengaturan toko ✅ |
-| 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) |
+| 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) ✅ |
 | 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur |
 | 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve |
 | 5 | Stok lengkap | Stok masuk, produksi, mutasi, opname, penyesuaian/waste, void |
@@ -737,21 +737,25 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Proxy dev Vite (`/api`, `/uploads`, `/socket.io`) → tanpa CORS, bisa dibuka dari HP lewat IP laptop
 - [x] Test e2e (Supertest, DB asli): staff ditolak di endpoint admin; CRUD menu; upload; pengaturan; pengguna — 12 test, juga jalan di CI
 
-### Sprint 2: POS & Approval (bisa jualan)
+### Sprint 2: POS & Approval (bisa jualan) ✅
 
-- [ ] `StockService` terpusat: `increase()`, `decrease()` dengan kunci baris (`FOR UPDATE`) dan pencatatan `stock_movements`; penyesuaian manual stok produk (stok awal)
-- [ ] Generator nomor order `BK-YYYYMMDD-0001` atomik via `daily_counters` (tanggal WITA)
-- [ ] OrdersModule: create, list, detail, edit, cancel (staff); approve, reject (admin); `order_logs`
-- [ ] Approve dalam satu transaksi: kunci & cek stok, potong stok pcs + kemasan, snapshot HPP (0 bila belum ada resep), status PAID
-- [ ] RealtimeGateway Socket.IO: autentikasi JWT saat handshake, room `admins`, `user:<id>`
-- [ ] FE Staff POS: toggle kategori, kartu produk + stepper, cari, keranjang persisten, sheet (HP) / panel (tablet), kirim ke admin
-- [ ] FE Staff History: filter, detail, edit/batal PENDING, notifikasi hasil approve
-- [ ] FE Admin Approval: antrian realtime + suara, detail, ubah item, diskon, form bayar (cash + kembalian, transfer, QRIS statis)
-- [ ] Receipt builder 32 kolom + cetak otomatis setelah approve + cetak ulang
-- [ ] FE Admin Semua Transaksi (filter) + Buat Order Langsung
-- [ ] Unit test OrdersService & StockService (stok tidak pernah minus; approve paralel)
-- [ ] Test e2e: order campuran Frozen + Siap Makan → approve → stok benar
-- [ ] **Uji coba jualan nyata 1 hari**
+- [x] `StockService` terpusat: kunci baris `FOR UPDATE` (urut id), fungsi murni `planStock` (gabung perubahan, cek minus, rata-rata tertimbang) + unit test; setiap perubahan tercatat di `stock_movements`
+- [x] `POST /stock/adjust` (tambah/kurangi/set, penyesuaian atau waste, alasan wajib), `GET /stock/products|ingredients|movements`
+- [x] Seeder stok awal demo (60 pcs/produk + bahan & kemasan), bisa dimatikan `SEED_DEMO_STOCK=false`
+- [x] Nomor order `BK-YYYYMMDD-0001` atomik via `daily_counters` (tanggal WITA)
+- [x] OrdersModule: create, list (filter status/sumber/tanggal/metode/cari), detail + riwayat, edit & batal (PENDING, staff miliknya), approve, reject; `order_logs`
+- [x] Harga selalu dari server (`priceItems`), cek stok tersedia (stok − PENDING hari ini) saat order dibuat
+- [x] Approve satu transaksi: koreksi qty, diskon, cek & potong stok pcs + kemasan, snapshot HPP (biaya rata-rata; resep di Sprint 4), PAID, masuk antrian dapur
+- [x] Pelanggan tersimpan otomatis dari nama/No. WA
+- [x] RealtimeGateway Socket.IO: JWT saat handshake, room `admins`, `user:<id>`, `kitchen`, `order:<publicToken>`
+- [x] FE Staff POS: toggle kategori + badge, stepper per varian, stok tersisa, cari, keranjang persisten, sheet (HP) / panel (tablet), pilih meja
+- [x] FE Staff History: filter tanggal & status, detail, batal, notifikasi approve/tolak realtime
+- [x] FE Admin Approval: antrian realtime + bunyi + badge, koreksi item, diskon Rp/%, Cash (nominal cepat + kembalian), Transfer (ref), QRIS (gambar toko / bukti pelanggan), Approve & Print, Tolak + alasan
+- [x] Struk 32 kolom (pratinjau layar + ESC/POS), cetak otomatis setelah approve bila printer terhubung, cetak ulang
+- [x] FE Admin Order: semua transaksi (filter tanggal/sumber/metode/status/cari), detail, Buat Order Langsung → layar bayar
+- [x] FE Stok: stok produk & bahan (aman/menipis/habis), atur stok, riwayat mutasi; Dashboard ringkasan hari ini
+- [x] Test e2e (9 skenario): order campuran → approve → stok, kemasan, HPP, kembalian benar; staff tidak bisa lihat/approve order orang lain; **dua approve bersamaan tidak membuat stok minus**
+- [ ] **Uji coba jualan nyata 1 hari** (oleh pemilik toko)
 
 ### Sprint 3: Self-Order QR Meja & Antrian Dapur
 

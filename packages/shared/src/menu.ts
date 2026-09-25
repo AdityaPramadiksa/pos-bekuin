@@ -119,3 +119,13 @@ export interface SettingsView {
 export const UPLOAD_PURPOSES = ['menu', 'logo', 'qris', 'proof', 'receipt'] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+export interface TableView {
+  id: string;
+  code: string;
+  name: string;
+  /** Hanya untuk admin; null untuk staff. */
+  qrToken: string | null;
+  isActive: boolean;
+  sortOrder: number;
+}

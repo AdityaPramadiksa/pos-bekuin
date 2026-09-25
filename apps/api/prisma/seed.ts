@@ -354,6 +354,8 @@ async function main() {
     }
   }
 
+  await seedDemoStock();
+
   const counts = {
     users: await prisma.user.count(),
     ingredients: await prisma.ingredient.count(),
@@ -363,6 +365,78 @@ async function main() {
     tables: await prisma.diningTable.count(),
   };
   console.log('Seeder selesai:', counts);
+}
+
+// ── Stok awal demo: hanya bila belum ada mutasi stok sama sekali ──
+const DEMO_STOCK: Record<string, number> = {
+  Ayam: 5000,
+  'Putih telur': 10,
+  Gula: 1000,
+  'Bumbu adonan (paket)': 5,
+  'Tepung tapioka': 2000,
+  'Keju oles': 4000,
+  'Kulit lumpia': 100,
+  'Kulit dimsum': 200,
+  'Tepung terigu': 2000,
+  'Susu cair': 1000,
+  Telur: 20,
+  'Smoked beef': 50,
+  Mayones: 1000,
+  'Kental manis': 400,
+  'Keju blok': 2000,
+  'Tepung roti': 2000,
+  'Plastik vacuum': 100,
+  'Stiker logo': 100,
+  Saos: 150,
+  'Box siap makan': 100,
+  'Minyak & gas': 100,
+};
+const DEMO_PRODUCT_PCS = 60;
+
+async function seedDemoStock() {
+  if (process.env.SEED_DEMO_STOCK === 'false') return;
+  if ((await prisma.stockMovement.count()) > 0) return;
+  const admin = await prisma.user.findUniqueOrThrow({ where: { username: 'admin' } });
+  const note = 'Stok awal demo (seeder) — sesuaikan lewat Stok Opname';
+
+  await prisma.$transaction(async (tx) => {
+    for (const [name, qty] of Object.entries(DEMO_STOCK)) {
+      const ing = await tx.ingredient.findUnique({ where: { name } });
+      if (!ing) continue;
+      const minStock = Math.round(qty * 0.2);
+      await tx.ingredient.update({ where: { id: ing.id }, data: { stockQty: qty, minStock } });
+      await tx.stockMovement.create({
+        data: {
+          itemType: 'INGREDIENT',
+          ingredientId: ing.id,
+          type: 'MANUAL_ADJUST',
+          qtyChange: qty,
+          balanceAfter: qty,
+          unitCost: ing.avgCostPerUnit,
+          refType: 'ADJUST',
+          note,
+          userId: admin.id,
+        },
+      });
+    }
+    for (const product of await tx.product.findMany()) {
+      await tx.product.update({ where: { id: product.id }, data: { stockPcs: DEMO_PRODUCT_PCS } });
+      await tx.stockMovement.create({
+        data: {
+          itemType: 'PRODUCT',
+          productId: product.id,
+          type: 'MANUAL_ADJUST',
+          qtyChange: DEMO_PRODUCT_PCS,
+          balanceAfter: DEMO_PRODUCT_PCS,
+          unitCost: product.avgCostPerPcs,
+          refType: 'ADJUST',
+          note,
+          userId: admin.id,
+        },
+      });
+    }
+  });
+  console.log(`Stok awal demo dibuat: ${DEMO_PRODUCT_PCS} pcs per produk + bahan & kemasan`);
 }
 
 main()

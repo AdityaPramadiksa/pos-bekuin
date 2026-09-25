@@ -39,3 +39,14 @@ export function formatOrderNo(date: Date, sequence: number, timeZone = APP_TIMEZ
 export function normalizeName(name: string): string {
   return name.toLowerCase().replace(/\s+/g, ' ').trim();
 }
+
+/** Tombol nominal cepat pembayaran cash: uang pas + pembulatan ke pecahan umum. */
+export function quickCashAmounts(total: number): number[] {
+  const set = new Set<number>([total]);
+  for (const step of [10_000, 20_000, 50_000, 100_000]) set.add(Math.ceil(total / step) * step);
+  if (total <= 100_000) set.add(100_000);
+  return [...set]
+    .filter((v) => v >= total)
+    .sort((a, b) => a - b)
+    .slice(0, 4);
+}

@@ -5,9 +5,14 @@ import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env';
 import { HealthController } from './health/health.controller';
 import { MenuModule } from './menu/menu.module';
+import { OrdersModule } from './orders/orders.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RealtimeModule } from './realtime/realtime.module';
+import { ReportsModule } from './reports/reports.module';
 import { SettingsModule } from './settings/settings.module';
+import { StockModule } from './stock/stock.module';
+import { TablesModule } from './tables/tables.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { UsersModule } from './users/users.module';
 
@@ -22,8 +27,12 @@ import { UsersModule } from './users/users.module';
     SettingsModule,
     PaymentMethodsModule,
     MenuModule,
-    // Modul berikutnya (lihat PRD bagian 10): Stock, Orders, Realtime (Sprint 2), Tables,
-    // Public, Kitchen (Sprint 3), Ingredients, Recipes, Purchases, Production, Opname,
+    RealtimeModule,
+    StockModule,
+    OrdersModule,
+    ReportsModule,
+    TablesModule,
+    // Modul berikutnya (lihat PRD bagian 10): Public, Kitchen (Sprint 3), Ingredients, Recipes, Purchases, Production, Opname,
     // Customers, OrderImport, Expenses, CashSessions, Reports.
   ],
   controllers: [HealthController],
