@@ -87,6 +87,10 @@ export class RealtimeGateway implements OnGatewayInit {
     this.emit([`order:${publicToken}`], 'order.status', payload);
   }
 
+  batchCreated(payload: { batchId: string; orders: number; deliveryDate: string }) {
+    this.emit(['admins'], 'batch.created', payload);
+  }
+
   stockChanged() {
     this.emit(['admins', 'kitchen'], 'stock.changed', {});
   }

@@ -1,0 +1,61 @@
+{
+  "_catatan": "CONTOH BUATAN yang disusun ulang dari tabel PRD 5.13 (bukan chat asli). Ganti wa-order-sample.txt dengan pesanan WhatsApp asli Bekuin lalu sesuaikan file ini.",
+  "deliveryOffsetDays": 1,
+  "totals": { "orders": 12, "packs": 21, "amount": 510000 },
+  "orders": [
+    {
+      "customerName": "Bu Kusuma",
+      "items": [
+        ["Udang Keju", "FROZEN", 6, 1],
+        ["Dimsum Ori", "FROZEN", 6, 1]
+      ]
+    },
+    {
+      "customerName": "Bu Ayu",
+      "merged": true,
+      "items": [
+        ["Udang Keju", "FROZEN", 6, 2],
+        ["Dimsum Keju", "FROZEN", 6, 1]
+      ]
+    },
+    {
+      "customerName": "Mahayuda",
+      "items": [
+        ["Udang Keju", "SIAP_MAKAN", 9, 1],
+        ["Dimsum Ori", "SIAP_MAKAN", 9, 1],
+        ["Dimsum Goreng Keju", "SIAP_MAKAN", 6, 1]
+      ]
+    },
+    {
+      "customerName": "Pak Budi",
+      "items": [
+        ["Dimsum Keju", "FROZEN", 6, 1],
+        ["Dimsum Ori", "FROZEN", 6, 1]
+      ]
+    },
+    { "customerName": "Mbak Rina", "items": [["Udang Keju", "FROZEN", 9, 1]] },
+    {
+      "customerName": "Bu Sari",
+      "items": [
+        ["Udang Keju", "FROZEN", 6, 1],
+        ["Dimsum Ori", "FROZEN", 6, 1]
+      ]
+    },
+    { "customerName": "Pak Joko", "items": [["Udang Keju", "FROZEN", 6, 2]] },
+    { "customerName": "Bu Tini", "items": [["Dimsum Goreng Keju", "FROZEN", 6, 1]] },
+    { "customerName": "Mas Andi", "items": [["Udang Keju", "FROZEN", 9, 1]] },
+    {
+      "customerName": "Bu Dewi",
+      "items": [
+        ["Udang Keju", "FROZEN", 6, 1],
+        ["Dimsum Ori", "FROZEN", 6, 1]
+      ]
+    },
+    { "customerName": "Pak Harto", "items": [["Udang Keju", "FROZEN", 6, 1]] },
+    { "customerName": "Bu Lina", "items": [["Dimsum Ori", "FROZEN", 6, 1]] }
+  ],
+  "warnings": [
+    "Bu Kusuma: 'Udng keju' (typo) dicocokkan secara fuzzy",
+    "Bu Dewi: 'Udang keju' tanpa ukuran → pack terkecil (6)"
+  ]
+}

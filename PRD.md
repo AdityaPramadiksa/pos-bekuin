@@ -797,18 +797,18 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] FE Stok: tab Stok Masuk (konversi & harga per unit live, foto nota), Produksi (pratinjau tabel, hasil aktual), Opname (tabel hitung fisik, simpan draft, finalkan), Riwayat Mutasi; tombol Void di detail transaksi
 - [x] Test e2e (6 skenario): **preview 60 pcs Udang Keju = adonan 1.500 g, keju oles 420 g, tepung roti 600 g**, stok masuk rata-rata tertimbang, produksi bertingkat + yield variance, approve memakai biaya aktual, void mengembalikan stok, opname, waste
 
-### Sprint 6: Pre-Order Massal, Rekap Produksi, Packing
+### Sprint 6: Pre-Order Massal, Rekap Produksi, Packing ✅
 
-- [ ] CustomersModule: CRUD, autocomplete, merge, order ulang
-- [ ] `OrderParserService` (fungsi murni) + unit test fixture `docs/fixtures` (12 order, 21 pack, Rp510.000; kasus "goreng" & pelanggan ganda)
-- [ ] Endpoint `import/preview` dan `import` (satu transaksi, nomor berurutan, `order_batches`)
-- [ ] FE Tempel Pesan: textarea + tempel dari clipboard, preview kartu per pelanggan, edit inline, status warna, ingat alias, Simpan semua
-- [ ] Tanggal kirim di POS, filter tanggal kirim di History/Approval/Transaksi
-- [ ] `ProductionPlanService` + unit test (138 pcs, adonan 3.540 g → 3 batch, keju 705 g, tepung roti 750 g, kulit dimsum 51, kulit lumpia 24)
-- [ ] FE Rekap Produksi: tabel, daftar belanja, buat produksi dari rekap, cetak, salin teks
-- [ ] FE Packing & Tagihan: kartu per pelanggan, progres, label 58mm, salin tagihan
-- [ ] `bulk-approve` + FE pilih massal; kartu "Besok" di Dashboard
-- [ ] Test e2e: paste teks sampel → 12 order → rekap → produksi → approve massal → stok & HPP benar
+- [x] CustomersModule: CRUD, autocomplete, merge, order ulang
+- [x] `OrderParserService` (fungsi murni) + unit test fixture `docs/fixtures` (12 order, 21 pack, Rp510.000; kasus "goreng" & pelanggan ganda)
+- [x] Endpoint `import/preview` dan `import` (satu transaksi, nomor berurutan, `order_batches`)
+- [x] FE Tempel Pesan: textarea + tempel dari clipboard, preview kartu per pelanggan, edit inline, status warna, ingat alias, Simpan semua
+- [x] Tanggal kirim di POS, filter tanggal kirim di History/Approval/Transaksi
+- [x] `ProductionPlanService` + unit test (138 pcs, adonan 3.540 g → 3 batch, keju 705 g, tepung roti 750 g, kulit dimsum 51, kulit lumpia 24)
+- [x] FE Rekap Produksi: tabel, daftar belanja, buat produksi dari rekap, cetak, salin teks
+- [x] FE Packing & Tagihan: kartu per pelanggan, progres, label 58mm, salin tagihan
+- [x] `bulk-approve` + FE pilih massal; kartu "Besok" di Dashboard
+- [x] Test e2e: paste teks sampel → 12 order → rekap → produksi → approve massal → stok & HPP benar
 
 ### Sprint 7: Keuangan & Laporan
 

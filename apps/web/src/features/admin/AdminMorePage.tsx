@@ -55,7 +55,7 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         label: 'Pelanggan & Alias',
         description: 'Data pelanggan, alias produk parser',
         icon: Users,
-        sprint: 'Sprint 6',
+        to: '/admin/lainnya/pelanggan',
       },
     ],
   },

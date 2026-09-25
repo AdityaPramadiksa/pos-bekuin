@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { TodaySummary } from '@bekuin/shared';
-import { businessRange, todayKey } from '../common/dates';
+import { addDays, businessRange, dateOnly, todayKey } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -29,6 +29,17 @@ export class ReportsService {
       this.prisma.$queryRaw<[{ n: number }]>`
         SELECT COUNT(*)::int AS n FROM ingredients WHERE "isActive" AND "stockQty" <= "minStock" AND "minStock" > 0`,
     ]);
+    const tomorrowKey = addDays(date, 1);
+    const tomorrowOrders = await this.prisma.order.findMany({
+      where: { status: { in: ['PENDING', 'PAID'] }, deliveryDate: dateOnly(tomorrowKey) },
+      select: {
+        customerId: true,
+        customerName: true,
+        total: true,
+        items: { select: { qty: true, packSize: true } },
+      },
+    });
+    const tomorrowItems = tomorrowOrders.flatMap((o) => o.items);
     const methodName = new Map(methods.map((m) => [m.id, m.name]));
     const revenue = paid._sum.total ?? 0;
     return {
@@ -46,6 +57,16 @@ export class ReportsService {
         }))
         .sort((a, b) => b.amount - a.amount),
       lowStock: { products: lowProducts[0].n, ingredients: lowIngredients[0].n },
+      tomorrow: {
+        date: tomorrowKey,
+        orders: tomorrowOrders.length,
+        customers: new Set(
+          tomorrowOrders.map((o) => o.customerId ?? o.customerName ?? Math.random()),
+        ).size,
+        packs: tomorrowItems.reduce((sum, i) => sum + i.qty, 0),
+        pcs: tomorrowItems.reduce((sum, i) => sum + i.qty * i.packSize, 0),
+        amount: tomorrowOrders.reduce((sum, o) => sum + o.total, 0),
+      },
     };
   }
 }

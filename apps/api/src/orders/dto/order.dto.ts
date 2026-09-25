@@ -185,3 +185,14 @@ export class ListOrdersDto {
   @Min(0)
   offset?: number;
 }
+
+export class BulkApproveDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsString({ each: true })
+  orderIds: string[];
+
+  @ApiProperty() @IsString() paymentMethodId: string;
+}

@@ -367,6 +367,53 @@ export class OrdersService {
     });
   }
 
+  /** Tiap order diproses dalam transaksi sendiri; yang gagal tidak menggagalkan yang lain. */
+  async bulkApprove(orderIds: string[], paymentMethodId: string, user: JwtPayload) {
+    const results: {
+      id: string;
+      orderNo: string;
+      ok: boolean;
+      message: string | null;
+      total: number;
+    }[] = [];
+    for (const id of [...new Set(orderIds)]) {
+      const order = await this.prisma.order.findUnique({
+        where: { id },
+        select: { orderNo: true, total: true },
+      });
+      if (!order) {
+        results.push({ id, orderNo: '-', ok: false, message: 'Order tidak ditemukan', total: 0 });
+        continue;
+      }
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const locked = await this.lockPending(tx, id, user);
+          await this.approveInTx(tx, id, { paymentMethodId, paidAmount: locked.total }, user.sub);
+        });
+        const view = await this.afterWrite(id, user, 'order.updated');
+        results.push({ id, orderNo: view.orderNo, ok: true, message: null, total: view.total });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? ((error as { response?: { message?: string } }).response?.message ?? error.message)
+            : 'Gagal';
+        results.push({
+          id,
+          orderNo: order.orderNo,
+          ok: false,
+          message: String(message),
+          total: order.total,
+        });
+      }
+    }
+    this.realtime.stockChanged();
+    return {
+      results,
+      succeeded: results.filter((r) => r.ok).length,
+      failed: results.filter((r) => !r.ok).length,
+    };
+  }
+
   /** Void order lunas: stok pcs & kemasan dikembalikan (VOID_RETURN); order tetap tercatat sebagai VOIDED. */
   async void(id: string, reason: string, user: JwtPayload): Promise<OrderView> {
     await this.prisma.$transaction(async (tx) => {

@@ -4,13 +4,16 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env';
 import { CostingModule } from './costing/costing.module';
+import { CustomersModule } from './customers/customers.module';
 import { HealthController } from './health/health.controller';
 import { IngredientsModule } from './ingredients/ingredients.module';
 import { MenuModule } from './menu/menu.module';
 import { OpnamesModule } from './opnames/opnames.module';
+import { OrderImportModule } from './order-import/order-import.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductAliasesModule } from './product-aliases/product-aliases.module';
 import { ProductionsModule } from './productions/productions.module';
 import { PublicModule } from './public/public.module';
 import { PurchasesModule } from './purchases/purchases.module';
@@ -46,6 +49,9 @@ import { UsersModule } from './users/users.module';
     PurchasesModule,
     ProductionsModule,
     OpnamesModule,
+    CustomersModule,
+    ProductAliasesModule,
+    OrderImportModule,
     // Modul berikutnya (lihat PRD bagian 10): Ingredients, Recipes, Purchases, Production, Opname,
     // Customers, OrderImport, Expenses, CashSessions, Reports.
   ],

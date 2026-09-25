@@ -1,5 +1,5 @@
 import { formatRupiah, SOURCE_LABEL, type OrderSource } from '@bekuin/shared';
-import { AlertTriangle, ClipboardCheck, TrendingUp, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarClock, ClipboardCheck, TrendingUp, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -85,6 +85,23 @@ export function AdminDashboardPage() {
                   to="/admin/stok"
                 />
               </div>
+              <section className="bg-brand-700 flex flex-wrap items-center gap-3 rounded-2xl p-4 text-white shadow-sm">
+                <CalendarClock className="size-6" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">Besok · {formatDateKey(s.tomorrow.date)}</p>
+                  <p className="text-sm text-white/85">
+                    {s.tomorrow.orders === 0
+                      ? 'Belum ada pre-order.'
+                      : `${s.tomorrow.customers} pelanggan · ${s.tomorrow.packs} pack · ${s.tomorrow.pcs} pcs · ${formatRupiah(s.tomorrow.amount)}`}
+                  </p>
+                </div>
+                <Link
+                  to="/admin/order/rekap"
+                  className="text-brand-700 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold"
+                >
+                  Lihat Rekap
+                </Link>
+              </section>
               <section className="rounded-2xl bg-white p-4 shadow-sm">
                 <h2 className="text-sm font-semibold">Per metode bayar</h2>
                 {s.byPaymentMethod.length === 0 ? (

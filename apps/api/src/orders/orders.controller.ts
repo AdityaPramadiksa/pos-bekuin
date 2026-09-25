@@ -5,6 +5,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { SettingsService } from '../settings/settings.service';
 import {
   ApproveOrderDto,
+  BulkApproveDto,
   CreateOrderDto,
   ListOrdersDto,
   OptionalReasonDto,
@@ -30,6 +31,31 @@ export class OrdersController {
   @Get()
   list(@Query() query: ListOrdersDto, @CurrentUser() user: JwtPayload) {
     return this.orders.list(query, user);
+  }
+
+  /** Daftar packing per tanggal kirim (order PENDING & PAID). */
+  @Roles('ADMIN')
+  @Get('packing-list')
+  packingList(@Query('date') date: string, @CurrentUser() user: JwtPayload) {
+    return this.orders.list(
+      {
+        dateField: 'delivery',
+        from: date,
+        to: date,
+        status: 'PENDING,PAID',
+        sort: 'oldest',
+        limit: 500,
+      },
+      user,
+    );
+  }
+
+  /** Approve banyak order sekaligus, masing-masing transaksi sendiri. */
+  @Roles('ADMIN')
+  @Post('bulk-approve')
+  @HttpCode(200)
+  bulkApprove(@Body() dto: BulkApproveDto, @CurrentUser() user: JwtPayload) {
+    return this.orders.bulkApprove(dto.orderIds, dto.paymentMethodId, user);
   }
 
   @Get(':id')

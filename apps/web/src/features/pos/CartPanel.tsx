@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Field, Input, Textarea } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { cartTotals, getCartStore } from '@/stores/cart';
+import { dateKeyWita, formatDateKey } from '@/features/orders/order-format';
+import { useCustomerSuggest } from '@/lib/queries';
 import { TablePicker } from './TablePicker';
 
 export function CartPanel({
@@ -21,6 +23,10 @@ export function CartPanel({
 }) {
   const { lines, meta, setQty, setMeta, clear } = getCartStore(cartKey)();
   const totals = cartTotals(lines);
+  const suggestions = useCustomerSuggest(meta.customerName);
+  const today = dateKeyWita(0);
+  const tomorrow = dateKeyWita(1);
+  const delivery = meta.deliveryDate || today;
 
   // Kelompokkan per kategori: FROZEN / SIAP MAKAN
   const groups = new Map<string, typeof lines>();
@@ -111,9 +117,55 @@ export function CartPanel({
               <Input
                 value={meta.customerName}
                 maxLength={60}
+                list={`${cartKey}-customers`}
+                autoComplete="off"
                 onChange={(e) => setMeta({ customerName: e.target.value })}
               />
+              <datalist id={`${cartKey}-customers`}>
+                {(suggestions.data ?? []).map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.phone ?? ''}
+                  </option>
+                ))}
+              </datalist>
             </Field>
+            <div>
+              <p className="mb-1 text-sm font-medium">Tanggal kirim</p>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { key: today, label: 'Hari ini' },
+                  { key: tomorrow, label: 'Besok' },
+                ].map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setMeta({ deliveryDate: d.key === today ? '' : d.key })}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-sm',
+                      delivery === d.key
+                        ? 'border-brand-700 bg-brand-700 text-white'
+                        : 'border-stone-300',
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+                <Input
+                  type="date"
+                  aria-label="Tanggal kirim"
+                  className="h-8 w-40"
+                  min={today}
+                  value={delivery}
+                  onChange={(e) =>
+                    setMeta({ deliveryDate: e.target.value === today ? '' : e.target.value })
+                  }
+                />
+              </div>
+              {delivery !== today && (
+                <p className="mt-1 text-xs text-amber-700">
+                  Pre-order untuk {formatDateKey(delivery)} — stok dicek saat approve.
+                </p>
+              )}
+            </div>
             {extraFields}
             <Field label="Catatan (opsional)">
               <Textarea

@@ -1,5 +1,5 @@
 import { formatRupiah } from '@bekuin/shared';
-import { ChefHat, Plus, Search } from 'lucide-react';
+import { ChefHat, ClipboardList, ClipboardPaste, PackageCheck, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
@@ -26,13 +26,23 @@ export function OrdersPage() {
   const [from, setFrom] = useState(dateKeyWita(0));
   const [to, setTo] = useState(dateKeyWita(0));
   const [status, setStatus] = useState('');
+  const [dateField, setDateField] = useState<'created' | 'delivery'>('created');
   const [source, setSource] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
   const methods = usePaymentMethods(true);
-  const orders = useOrders({ from, to, status, source, paymentMethodId, q: q.trim(), limit: 200 });
+  const orders = useOrders({
+    from,
+    to,
+    dateField,
+    status,
+    source,
+    paymentMethodId,
+    q: q.trim(),
+    limit: 200,
+  });
   const paidTotal = (orders.data?.items ?? [])
     .filter((o) => o.status === 'PAID')
     .reduce((s, o) => s + o.total, 0);
@@ -43,22 +53,40 @@ export function OrdersPage() {
         title="Order"
         subtitle="Semua transaksi"
         action={
-          <div className="flex gap-2">
-            <Link to="/admin/order/dapur">
-              <Button variant="outline" size="sm">
-                <ChefHat className="size-4" /> Dapur
-              </Button>
-            </Link>
-            <Link to="/admin/order/baru">
-              <Button size="sm">
-                <Plus className="size-4" /> Buat Order
-              </Button>
-            </Link>
-          </div>
+          <Link to="/admin/order/baru">
+            <Button size="sm">
+              <Plus className="size-4" /> Buat Order
+            </Button>
+          </Link>
         }
       />
       <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <nav className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { to: '/admin/order/dapur', label: 'Antrian Dapur', icon: ChefHat },
+            { to: '/admin/order/tempel', label: 'Tempel Pesan', icon: ClipboardPaste },
+            { to: '/admin/order/rekap', label: 'Rekap Produksi', icon: ClipboardList },
+            { to: '/admin/order/packing', label: 'Packing & Tagihan', icon: PackageCheck },
+          ].map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-medium shadow-sm hover:bg-stone-50"
+            >
+              <l.icon className="text-brand-700 size-4" /> {l.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <Select
+            aria-label="Jenis tanggal"
+            className="col-span-2 sm:col-span-1"
+            value={dateField}
+            onChange={(e) => setDateField(e.target.value as 'created' | 'delivery')}
+          >
+            <option value="created">Tanggal order</option>
+            <option value="delivery">Tanggal kirim</option>
+          </Select>
           <Input
             type="date"
             aria-label="Dari"

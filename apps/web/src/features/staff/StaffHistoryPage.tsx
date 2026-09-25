@@ -11,6 +11,7 @@ const RANGES = [
   { key: 'today', label: 'Hari ini', from: () => dateKeyWita(0), to: () => dateKeyWita(0) },
   { key: 'yesterday', label: 'Kemarin', from: () => dateKeyWita(-1), to: () => dateKeyWita(-1) },
   { key: 'week', label: '7 hari', from: () => dateKeyWita(-6), to: () => dateKeyWita(0) },
+  { key: 'tomorrow', label: 'Kirim besok', from: () => dateKeyWita(1), to: () => dateKeyWita(1) },
 ] as const;
 const STATUSES = [
   { key: '', label: 'Semua' },
@@ -24,7 +25,13 @@ export function StaffHistoryPage() {
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
   const r = RANGES.find((x) => x.key === range)!;
-  const orders = useOrders({ mine: true, from: r.from(), to: r.to(), status });
+  const orders = useOrders({
+    mine: true,
+    from: r.from(),
+    to: r.to(),
+    status,
+    dateField: range === 'tomorrow' ? 'delivery' : 'created',
+  });
 
   const totalPaid = (orders.data?.items ?? [])
     .filter((o) => o.status === 'PAID')

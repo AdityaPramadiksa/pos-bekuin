@@ -2,11 +2,15 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
 import { AdminMorePage } from '@/features/admin/AdminMorePage';
 import { ApprovalPage } from '@/features/admin/approval/ApprovalPage';
+import { CustomersPage } from '@/features/admin/customers/CustomersPage';
 import { MenuPage } from '@/features/admin/menu/MenuPage';
 import { RecipesPage } from '@/features/admin/recipes/RecipesPage';
 import { PrintQrPage } from '@/features/admin/tables/PrintQrPage';
 import { TablesPage } from '@/features/admin/tables/TablesPage';
 import { KitchenPage } from '@/features/kitchen/KitchenPage';
+import { PackingPage } from '@/features/preorder/PackingPage';
+import { PastePage } from '@/features/preorder/PastePage';
+import { ProductionPlanPage } from '@/features/preorder/ProductionPlanPage';
 import { AdminNewOrderPage } from '@/features/admin/orders/AdminNewOrderPage';
 import { OrdersPage } from '@/features/admin/orders/OrdersPage';
 import { StockPage } from '@/features/admin/stock/StockPage';
@@ -70,12 +74,16 @@ export const router = createBrowserRouter([
               { path: 'order', element: <OrdersPage /> },
               { path: 'order/baru', element: <AdminNewOrderPage /> },
               { path: 'order/dapur', element: <KitchenPage /> },
+              { path: 'order/tempel', element: <PastePage /> },
+              { path: 'order/rekap', element: <ProductionPlanPage /> },
+              { path: 'order/packing', element: <PackingPage /> },
               { path: 'stok', element: <StockPage /> },
               { path: 'lainnya', element: <AdminMorePage /> },
               { path: 'lainnya/menu', element: <MenuPage /> },
               { path: 'lainnya/pengguna', element: <UsersPage /> },
               { path: 'lainnya/meja', element: <TablesPage /> },
               { path: 'lainnya/resep', element: <RecipesPage /> },
+              { path: 'lainnya/pelanggan', element: <CustomersPage /> },
               { path: 'lainnya/pengaturan', element: <SettingsPage /> },
               { path: 'lainnya/metode-bayar', element: <PaymentMethodsPage /> },
               { path: 'lainnya/printer', element: <PrinterPage /> },

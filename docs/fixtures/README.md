@@ -1,23 +1,12 @@
 # Fixture Parser Pesan WhatsApp
 
-Folder ini untuk uji terima parser Tempel Pesan (PRD 5.12, Sprint 6).
+Dipakai unit test `apps/api/src/order-import/parser.spec.ts` (PRD 5.12).
 
-Isi dua file berikut dengan **pesanan WhatsApp nyata** Bekuin (12 pelanggan):
+- `wa-order-sample.txt` — teks pesanan seperti di-copy dari WhatsApp.
+- `wa-order-expected.json` — hasil yang diharapkan: 12 order, 21 pack, Rp510.000, semua item Mahayuda `SIAP_MAKAN`.
 
-- `wa-order-sample.txt` — teks pesanan persis seperti yang di-copy dari WhatsApp (jangan dirapikan).
-- `wa-order-expected.json` — hasil yang diharapkan: 12 order, 21 pack, total Rp510.000, semua item Mahayuda berkategori `SIAP_MAKAN`.
-
-Contoh bentuk `wa-order-expected.json`:
-
-```json
-{
-  "deliveryOffsetDays": 1,
-  "totals": { "orders": 12, "packs": 21, "amount": 510000 },
-  "orders": [
-    {
-      "customerName": "Bu Kusuma",
-      "items": [{ "product": "Udang Keju", "category": "FROZEN", "packSize": 6, "qty": 1, "price": 22000 }]
-    }
-  ]
-}
-```
+> ⚠️ Isi saat ini adalah **contoh buatan** yang disusun ulang dari tabel PRD 5.13 (rekap produksi 138 pcs),
+> lengkap dengan kasus uji: header `Oderan bsk`, pelanggan ganda (Bu Ayu), typo (`Udng keju`), alias ejaan (`Dimsam ori`),
+> ukuran tanpa tulisan (Bu Dewi), `psc`, `x2`/`2x`, alias `goreng keju`/`udang`, penanda `mateng/digoreng`.
+> Ganti dengan pesanan WhatsApp **asli** Bekuin agar parser teruji terhadap gaya tulis pelanggan sebenarnya,
+> lalu sesuaikan `wa-order-expected.json`.

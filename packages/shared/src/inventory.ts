@@ -90,3 +90,45 @@ export interface OpnameView {
 }
 
 export type { StockStatus };
+
+export interface ProductionPlanView {
+  date: string;
+  summary: { orders: number; customers: number; packs: number; pcs: number; amount: number };
+  products: {
+    productId: string;
+    productName: string;
+    /** kunci "FROZEN|6" → jumlah pack */
+    byVariant: Record<string, number>;
+    totalPcs: number;
+    stockPcs: number;
+    toProduce: number;
+    recipeId: string | null;
+  }[];
+  variantColumns: { key: string; categoryCode: string; packSize: number }[];
+  semiFinished: {
+    ingredientId: string;
+    name: string;
+    baseUnit: BaseUnit;
+    need: number;
+    stock: number;
+    shortfall: number;
+    batches: number;
+    batchYield: number;
+    willMake: number;
+    recipeId: string;
+  }[];
+  materials: {
+    ingredientId: string;
+    name: string;
+    type: 'RAW' | 'PACKAGING';
+    baseUnit: BaseUnit;
+    need: number;
+    stock: number;
+    shortage: number;
+    purchaseUnit: string | null;
+    packsToBuy: number;
+    estimatedCost: number;
+  }[];
+  fryList: { productName: string; packSize: number; qty: number }[];
+  shoppingTotal: number;
+}

@@ -1,5 +1,8 @@
 import type {
   CatalogResponse,
+  CustomerView,
+  ProductAliasView,
+  ProductionPlanView,
   OpnameView,
   ProductionView,
   PurchaseView,
@@ -142,3 +145,35 @@ export const useProductions = () =>
   });
 export const useOpnames = () =>
   useQuery({ queryKey: ['stock', 'opnames'], queryFn: () => get<OpnameView[]>('/opnames') });
+
+export const useCustomers = (q: string) =>
+  useQuery({
+    queryKey: ['customers', q],
+    queryFn: () => get<CustomerView[]>(`/customers?q=${encodeURIComponent(q)}`),
+  });
+
+export const useCustomerSuggest = (q: string) =>
+  useQuery({
+    queryKey: ['customers', 'suggest', q],
+    queryFn: () =>
+      get<{ id: string; name: string; phone: string | null }[]>(
+        `/customers/suggest?q=${encodeURIComponent(q)}`,
+      ),
+    enabled: q.trim().length >= 2,
+    staleTime: 60_000,
+  });
+
+export const useAliases = () =>
+  useQuery({ queryKey: ['aliases'], queryFn: () => get<ProductAliasView[]>('/product-aliases') });
+
+export const useProductionPlan = (date: string) =>
+  useQuery({
+    queryKey: ['orders', 'plan', date],
+    queryFn: () => get<ProductionPlanView>(`/reports/production-plan?date=${date}`),
+  });
+
+export const usePackingList = (date: string) =>
+  useQuery({
+    queryKey: ['orders', 'packing', date],
+    queryFn: () => get<OrderListResponse>(`/orders/packing-list?date=${date}`),
+  });
