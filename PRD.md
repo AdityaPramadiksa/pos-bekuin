@@ -631,6 +631,7 @@ QRIS                   104.000
 - Reconnect otomatis ke printer terakhir, dan logo toko opsional (bitmap monokrom 384 px).
 - Fallback bila Web Bluetooth tidak didukung: aplikasi RawBT (Android) atau dialog print browser.
 - Syarat: Chrome Android, HTTPS (atau localhost), dan printer mendukung **BLE**. Wajib dites dengan printer yang dipakai.
+- **Printer Bekuin: Axelpos/Iware C58BT.** Spesifikasinya: thermal 58mm, 384 dot/baris (cocok dengan 32 karakter font A), perintah ESC/POS, Bluetooth + USB, port laci uang RJ11. Printer ini diiklankan kompatibel dengan iOS, yang biasanya berarti mendukung BLE. Tetap perlu dibuktikan lewat tes print. Bila ternyata hanya Bluetooth Classic, cetak lewat aplikasi RawBT.
 - Builder yang sama dipakai untuk label packing, rekap produksi, tutup shift/tutup hari, dan kartu QR meja (QR sebagai raster bitmap).
 
 ## 9. API Endpoint
@@ -719,7 +720,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Web: rute publik pelanggan `/m/:qrToken` dan `/o/:publicToken` (placeholder)
 - [x] Spike Web Bluetooth: builder ESC/POS + halaman Printer (hubungkan, tes print "Halo Bekuin")
 - [x] GitHub Actions CI: lint, format, typecheck, test, migrasi + seed, build
-- [ ] **Uji printer nyata** dari Chrome Android: catat merek/tipe dan hasilnya
+- [ ] **Uji printer nyata** Axelpos/Iware C58BT dari Chrome Android (HTTPS): printer muncul di daftar? tes print keluar rapi 32 kolom?
 - [ ] Inisialisasi shadcn/ui komponen dasar (`button`, `input`, `dialog`, `sheet`, `table`, `badge`, `tabs`)
 
 ### Sprint 1: Pengguna, Menu, Pengaturan
@@ -822,6 +823,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [ ] Pembayaran campuran dan DP pre-order; ongkos kirim
 - [ ] Loyalty/member & voucher; laporan pelanggan (frekuensi, top customer)
 - [ ] Kirim struk digital/tagihan otomatis via WhatsApp API
+- [ ] Buka laci uang otomatis saat approve Cash (perintah ESC/POS `ESC p` lewat port RJ11 printer C58BT)
 - [ ] Multi-outlet
 
 ## 11. Non-Functional Requirements dan Definition of Done
@@ -851,10 +853,10 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - Approve diblokir bila stok kurang (bisa dimatikan di pengaturan).
 - Pembayaran QR memakai QRIS statis + konfirmasi manual admin; QRIS dinamis masuk backlog.
 - Pelanggan QR tidak perlu akun; No. WA opsional.
+- Printer: Axelpos/Iware C58BT (ESC/POS, 58mm), dengan RawBT sebagai cadangan bila BLE tidak tersedia.
 
 **Pertanyaan terbuka**
 
-- Merek dan tipe printer 58mm (untuk memastikan dukungan BLE).
 - Apakah self-order QR juga menjual Frozen (dibawa pulang), atau hanya Siap Makan? Default: keduanya tampil.
 - Apakah order dine-in diantar ke meja, atau pelanggan mengambil di kasir saat dipanggil?
 - Kapan pelanggan pre-order membayar (di muka, saat ambil, atau setelah)? Apakah ada ongkir?
@@ -879,4 +881,4 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | --- | --- | --- |
 | 1.0 | 21 Sep 2026 | PRD awal: order, approval, stok, produksi, HPP, struk 58mm, laporan |
 | 1.1 | 21 Sep 2026 | Pre-order massal via tempel pesan, rekap produksi, packing, tagihan, approve massal |
-| 2.0 | 25 Sep 2026 | **Final.** Role Pelanggan + self-order QR meja (QRIS, lacak pesanan), Meja & QR, Antrian Dapur, CRUD menu diperjelas, Pengeluaran, Shift Kasir, laporan Laba Rugi & Arus Kas, pengaturan jam buka. Urutan sprint diubah (jualan dulu). Stack dipastikan: NestJS 11, Prisma 6, React 19, Vite 7, Tailwind 4. Sprint 0 selesai. |
+| 2.0 | 25 Sep 2026 | **Final.** Role Pelanggan + self-order QR meja (QRIS, lacak pesanan), Meja & QR, Antrian Dapur, CRUD menu diperjelas, Pengeluaran, Shift Kasir, laporan Laba Rugi & Arus Kas, pengaturan jam buka. Urutan sprint diubah (jualan dulu). Stack dipastikan: NestJS 11, Prisma 6, React 19, Vite 7, Tailwind 4. Sprint 0 selesai. Printer ditetapkan: Axelpos/Iware C58BT. |
