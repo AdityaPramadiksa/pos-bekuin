@@ -3,9 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { validateEnv } from './config/env';
+import { CashSessionsModule } from './cash-sessions/cash-sessions.module';
 import { CostingModule } from './costing/costing.module';
 import { CustomersModule } from './customers/customers.module';
 import { HealthController } from './health/health.controller';
+import { ExpensesModule } from './expenses/expenses.module';
 import { IngredientsModule } from './ingredients/ingredients.module';
 import { MenuModule } from './menu/menu.module';
 import { OpnamesModule } from './opnames/opnames.module';
@@ -52,8 +54,8 @@ import { UsersModule } from './users/users.module';
     CustomersModule,
     ProductAliasesModule,
     OrderImportModule,
-    // Modul berikutnya (lihat PRD bagian 10): Ingredients, Recipes, Purchases, Production, Opname,
-    // Customers, OrderImport, Expenses, CashSessions, Reports.
+    CashSessionsModule,
+    ExpensesModule,
   ],
   controllers: [HealthController],
 })

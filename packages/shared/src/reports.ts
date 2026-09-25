@@ -1,4 +1,5 @@
 import type { OrderSource } from './enums';
+import type { DashboardDay } from './finance';
 
 export interface TodaySummary {
   date: string;
@@ -15,4 +16,8 @@ export interface TodaySummary {
     pcs: number;
     amount: number;
   };
+  /** Omzet & laba kotor 7 hari terakhir (grafik dashboard), hari ini paling akhir. */
+  last7Days: DashboardDay[];
+  /** Shift kasir yang sedang terbuka. */
+  cashSession: { id: string; openedAt: string; openingCash: number; expectedCash: number } | null;
 }

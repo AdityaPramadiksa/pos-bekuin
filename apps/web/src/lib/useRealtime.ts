@@ -23,6 +23,7 @@ export function useRealtime() {
       void queryClient.invalidateQueries({ queryKey: ['order'] });
       void queryClient.invalidateQueries({ queryKey: ['reports'] });
       void queryClient.invalidateQueries({ queryKey: ['kitchen'] });
+      void queryClient.invalidateQueries({ queryKey: ['finance'] });
     };
 
     socket.on('order.created', (e: OrderEvent) => {
@@ -45,6 +46,10 @@ export function useRealtime() {
       if (role === 'ADMIN' && e.source === 'QR_TABLE' && e.status === 'PENDING') playChime();
     });
     socket.on('order.fulfillment', refreshOrders);
+    socket.on('finance.changed', () => {
+      void queryClient.invalidateQueries({ queryKey: ['finance'] });
+      void queryClient.invalidateQueries({ queryKey: ['reports'] });
+    });
     socket.on('stock.changed', () => {
       void queryClient.invalidateQueries({ queryKey: ['catalog'] });
       void queryClient.invalidateQueries({ queryKey: ['stock'] });

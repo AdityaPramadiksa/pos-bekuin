@@ -420,6 +420,7 @@ model Order {
   logs          OrderLog[]
 
   @@index([status, createdAt])
+  @@index([status, approvedAt])
   @@index([deliveryDate, status])
   @@index([source, status])
   @@index([createdById, createdAt])

@@ -35,11 +35,30 @@ export async function createTestContext(prefix: string) {
     };
   }
 
+  /**
+   * Pastikan ada shift kasir terbuka (approve cash mewajibkannya). Shift yang dibuat di sini
+   * dihapus lagi saat close(); shift milik data lokal yang sudah terbuka dipakai apa adanya.
+   */
+  const createdShifts: string[] = [];
+  async function cashShift(openedById: string): Promise<string> {
+    const open = await prisma.cashSession.findFirst({ where: { status: 'OPEN' } });
+    if (open) return open.id;
+    const created = await prisma.cashSession.create({ data: { openedById, openingCash: 0 } });
+    createdShifts.push(created.id);
+    return created.id;
+  }
+
   async function close() {
+    if (createdShifts.length) {
+      const where = { cashSessionId: { in: createdShifts } };
+      await prisma.order.updateMany({ where, data: { cashSessionId: null } });
+      await prisma.expense.updateMany({ where, data: { cashSessionId: null } });
+      await prisma.cashSession.deleteMany({ where: { id: { in: createdShifts } } });
+    }
     await prisma.user.deleteMany({ where: { username: { endsWith: `_${suffix}` } } });
     await prisma.$disconnect();
     await app.close();
   }
 
-  return { app, prisma, api, user, suffix, close };
+  return { app, prisma, api, user, suffix, cashShift, close };
 }

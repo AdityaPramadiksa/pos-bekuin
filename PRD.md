@@ -677,10 +677,10 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Opname | `GET/POST /opnames`, `GET/PATCH/DELETE /opnames/:id`, `POST /opnames/:id/finalize` | Admin | Stok opname ✅ |
 | Plan | `GET /reports/production-plan?date=` | Admin | Rekap produksi + daftar belanja |
 | Packing | `GET /orders/packing-list?date=` | Admin | Daftar packing |
-| Expenses | `GET/POST/PATCH/DELETE /expenses`, `GET/POST/PATCH /expense-categories` | Admin | Pengeluaran |
-| Cash | `GET /cash-sessions/current`, `POST /cash-sessions/open`, `POST /cash-sessions/:id/close`, `GET /cash-sessions` | Admin | Shift kasir |
-| Reports | `GET /reports/sales`, `/profit-loss`, `/product-profit`, `/cashflow`, `/top-products`, `/stock-movements`, `/daily-closing`, `/qr-service` | Admin | Query `from`, `to`, `groupBy` |
-| Reports | `GET /reports/:type/export?format=csv|xlsx` | Admin | Export |
+| Expenses | `GET/POST/PATCH/DELETE /expenses`, `GET/POST/PATCH /expense-categories` | Admin | Pengeluaran ✅ |
+| Cash | `GET /cash-sessions/current`, `POST /cash-sessions/open`, `POST /cash-sessions/:id/close`, `GET /cash-sessions` | Admin | Shift kasir ✅ |
+| Reports | `GET /reports/sales`, `/profit-loss`, `/product-profit`, `/cashflow`, `/top-products`, `/stock-movements`, `/shifts`, `/daily-closing`, `/qr-service` | Admin | Query `from`, `to` (WITA, maks. 400 hari); `daily-closing` memakai `date` ✅ |
+| Reports | `GET /reports/:type/export?format=csv|xlsx` | Admin | Export ✅ |
 
 ✅ = sudah diimplementasikan.
 
@@ -810,15 +810,15 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] `bulk-approve` + FE pilih massal; kartu "Besok" di Dashboard
 - [x] Test e2e: paste teks sampel → 12 order → rekap → produksi → approve massal → stok & HPP benar
 
-### Sprint 7: Keuangan & Laporan
+### Sprint 7: Keuangan & Laporan ✅
 
-- [ ] ExpensesModule + kategori pengeluaran; FE form cepat + foto nota
-- [ ] CashSessionsModule: buka/tutup shift, kas seharusnya, selisih; approve cash wajib shift terbuka; cetak tutup shift
-- [ ] ReportsModule: penjualan (per metode/sumber/staff/jam), laba rugi, laba per produk, arus kas, produk terlaris, mutasi stok, shift, layanan QR, rekap harian
-- [ ] Export CSV/XLSX
-- [ ] FE Dashboard: kartu ringkasan, grafik 7 hari, stok menipis, badge PENDING, status shift
-- [ ] FE Laporan: filter periode, tabel + grafik, export, cetak tutup hari ke printer
-- [ ] Unit test laporan: void/reject tidak masuk omzet; laba bersih = laba kotor − pengeluaran − waste
+- [x] ExpensesModule + kategori pengeluaran; FE form cepat + foto nota
+- [x] CashSessionsModule: buka/tutup shift, kas seharusnya, selisih; approve cash wajib shift terbuka; cetak tutup shift
+- [x] ReportsModule: penjualan (per metode/sumber/staff/jam), laba rugi, laba per produk, arus kas, produk terlaris, mutasi stok, shift, layanan QR, rekap harian
+- [x] Export CSV/XLSX
+- [x] FE Dashboard: kartu ringkasan, grafik 7 hari, stok menipis, badge PENDING, status shift
+- [x] FE Laporan: filter periode, tabel + grafik, export, cetak tutup hari ke printer
+- [x] Unit test laporan: void/reject tidak masuk omzet; laba bersih = laba kotor − pengeluaran − waste
 
 ### Sprint 8: Polish, Keamanan, Deploy
 

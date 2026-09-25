@@ -72,6 +72,7 @@ describe('Sprint 2: POS & approval (e2e)', () => {
     sm9 = product.variants.find((v) => v.packSize === 9)!.id;
     cashId = (await ctx.prisma.paymentMethod.findUniqueOrThrow({ where: { name: 'Cash' } })).id;
     qrisId = (await ctx.prisma.paymentMethod.findUniqueOrThrow({ where: { name: 'QRIS' } })).id;
+    await ctx.cashShift(admin.id);
     await adjust('PRODUCT', productId, 'SET', 30).expect(201);
     await adjust('INGREDIENT', packagingId, 'SET', 5).expect(201);
   });

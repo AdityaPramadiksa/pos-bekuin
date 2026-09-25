@@ -95,6 +95,11 @@ export class RealtimeGateway implements OnGatewayInit {
     this.emit(['admins', 'kitchen'], 'stock.changed', {});
   }
 
+  /** Shift kasir dibuka/ditutup atau pengeluaran berubah → dashboard & laporan dimuat ulang. */
+  financeChanged() {
+    this.emit(['admins'], 'finance.changed', {});
+  }
+
   private emit(rooms: string[], event: string, payload: unknown) {
     if (!this.server) return; // mis. saat unit test tanpa server socket
     try {

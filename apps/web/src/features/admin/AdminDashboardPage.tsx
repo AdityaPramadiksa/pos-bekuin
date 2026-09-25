@@ -1,10 +1,18 @@
 import { formatRupiah, SOURCE_LABEL, type OrderSource } from '@bekuin/shared';
-import { AlertTriangle, CalendarClock, ClipboardCheck, TrendingUp, Wallet } from 'lucide-react';
+import {
+  AlertTriangle,
+  CalendarClock,
+  ClipboardCheck,
+  Landmark,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
+import { ColumnChart } from '@/components/charts/ColumnChart';
 import { ErrorState, LoadingState } from '@/components/ui/states';
-import { formatDateKey } from '@/features/orders/order-format';
+import { formatDateKey, formatTime } from '@/features/orders/order-format';
 import { useTodaySummary } from '@/lib/queries';
 import { useAuthStore } from '@/stores/auth';
 
@@ -27,7 +35,7 @@ function Stat({
         {icon}
         <span className="text-xs font-medium">{label}</span>
       </div>
-      <p className="mt-1 text-2xl font-bold tabular-nums">{value}</p>
+      <p className="mt-1 text-lg font-bold whitespace-nowrap sm:text-2xl">{value}</p>
       {sub && <p className="text-xs text-stone-500">{sub}</p>}
     </div>
   );
@@ -85,6 +93,29 @@ export function AdminDashboardPage() {
                   to="/admin/stok"
                 />
               </div>
+              <Link
+                to="/admin/lainnya/keuangan"
+                className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm hover:bg-stone-50"
+              >
+                <Landmark
+                  className={s.cashSession ? 'size-5 text-green-700' : 'size-5 text-amber-600'}
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold">
+                    {s.cashSession
+                      ? `Shift kasir terbuka sejak ${formatTime(s.cashSession.openedAt)}`
+                      : 'Shift kasir belum dibuka'}
+                  </p>
+                  <p className="text-xs text-stone-500">
+                    {s.cashSession
+                      ? `Kas seharusnya di laci ${formatRupiah(s.cashSession.expectedCash)}`
+                      : 'Buka shift dulu agar bisa menerima pembayaran cash.'}
+                  </p>
+                </div>
+                <span className="text-brand-700 text-sm font-semibold">
+                  {s.cashSession ? 'Kelola' : 'Buka shift'}
+                </span>
+              </Link>
               <section className="bg-brand-700 flex flex-wrap items-center gap-3 rounded-2xl p-4 text-white shadow-sm">
                 <CalendarClock className="size-6" />
                 <div className="flex-1">
@@ -103,7 +134,32 @@ export function AdminDashboardPage() {
                 </Link>
               </section>
               <section className="rounded-2xl bg-white p-4 shadow-sm">
-                <h2 className="text-sm font-semibold">Per metode bayar</h2>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold">Omzet 7 hari terakhir</h2>
+                  <Link
+                    to="/admin/lainnya/laporan"
+                    className="text-brand-700 text-xs font-semibold"
+                  >
+                    Laporan lengkap →
+                  </Link>
+                </div>
+                <ColumnChart
+                  ariaLabel="Grafik omzet 7 hari terakhir"
+                  format={formatRupiah}
+                  data={s.last7Days.map((d) => ({
+                    key: d.date,
+                    label: formatDateKey(d.date).split(',')[0],
+                    title: formatDateKey(d.date),
+                    value: d.revenue,
+                    details: [
+                      { label: 'order', value: String(d.orders) },
+                      { label: 'laba kotor', value: formatRupiah(d.grossProfit) },
+                    ],
+                  }))}
+                />
+              </section>
+              <section className="rounded-2xl bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-semibold">Per metode bayar hari ini</h2>
                 {s.byPaymentMethod.length === 0 ? (
                   <p className="mt-2 text-sm text-stone-500">Belum ada penjualan hari ini.</p>
                 ) : (

@@ -8,6 +8,9 @@
   --color-brand-700: #b91c1c;
   --color-brand-800: #991b1b;
   --color-cream: #fffbf5;
+  /* Warna data grafik (tervalidasi CVD & kontras 3:1 di permukaan putih). */
+  --color-series-1: #2a78d6;
+  --color-series-1-wash: #2a78d61a;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 

@@ -1,4 +1,8 @@
 import type {
+  CashSessionView,
+  ExpenseCategoryView,
+  ExpenseView,
+  ReportType,
   CatalogResponse,
   CustomerView,
   ProductAliasView,
@@ -176,4 +180,44 @@ export const usePackingList = (date: string) =>
   useQuery({
     queryKey: ['orders', 'packing', date],
     queryFn: () => get<OrderListResponse>(`/orders/packing-list?date=${date}`),
+  });
+
+// ───────────────────────────── Keuangan & laporan ─────────────────────────────
+
+export const useExpenseCategories = (all = false) =>
+  useQuery({
+    queryKey: ['finance', 'expense-categories', all],
+    queryFn: () => get<ExpenseCategoryView[]>(`/expense-categories?all=${all}`),
+  });
+
+export const useExpenses = (from: string, to: string) =>
+  useQuery({
+    queryKey: ['finance', 'expenses', from, to],
+    queryFn: () => get<ExpenseView[]>(`/expenses?from=${from}&to=${to}`),
+  });
+
+export const useCurrentShift = () =>
+  useQuery({
+    queryKey: ['finance', 'shift', 'current'],
+    queryFn: () => get<CashSessionView | null>('/cash-sessions/current'),
+  });
+
+export const useShifts = (from: string, to: string) =>
+  useQuery({
+    queryKey: ['finance', 'shifts', from, to],
+    queryFn: () => get<CashSessionView[]>(`/cash-sessions?from=${from}&to=${to}`),
+  });
+
+/** Laporan per jenis; `date` khusus rekap harian. */
+export const useReport = <T>(type: ReportType, params: { from: string; to: string }) =>
+  useQuery({
+    queryKey: ['reports', type, params.from, params.to],
+    queryFn: () =>
+      get<T>(
+        type === 'daily-closing'
+          ? `/reports/daily-closing?date=${params.from}`
+          : `/reports/${type}?from=${params.from}&to=${params.to}`,
+      ),
+    // Saat ganti periode, tampilan lama tetap (redup) sampai data baru datang — hanya untuk jenis yang sama.
+    placeholderData: (prev, prevQuery) => (prevQuery?.queryKey[1] === type ? prev : undefined),
   });

@@ -7,6 +7,7 @@ import {
 import { type OrderSource, OrderStatus, type OrderType, Prisma } from '@prisma/client';
 import { normalizeName, type OrderListResponse, type OrderView } from '@bekuin/shared';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
+import { lockOpenCashSession } from '../cash-sessions/cash-sessions.service';
 import { addDays, businessRange, dateOnly, todayKey } from '../common/dates';
 import { CostingService } from '../costing/costing.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -295,6 +296,16 @@ export class OrdersService {
     const method = await tx.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
     const payment = settlePayment(total, method.type, dto.paidAmount);
+    // Uang cash masuk laci → wajib ada shift kasir terbuka (PRD 5.14).
+    let cashSessionId: string | null = null;
+    if (method.type === 'CASH') {
+      cashSessionId = await lockOpenCashSession(tx);
+      if (!cashSessionId) {
+        throw new BadRequestException(
+          'Belum ada shift kasir yang terbuka. Buka shift dulu di menu Keuangan → Shift Kasir.',
+        );
+      }
+    }
 
     // 3. Potong stok pcs produk + kemasan per pack.
     const settings = await tx.setting.findUnique({ where: { id: 'default' } });
@@ -353,6 +364,7 @@ export class OrdersService {
         paymentRef: dto.paymentRef ?? null,
         approvedById: userId,
         approvedAt: new Date(),
+        cashSessionId,
       },
     });
     await tx.orderLog.create({

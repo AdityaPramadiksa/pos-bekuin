@@ -24,6 +24,8 @@ export function configureApp(app: NestExpressApplication) {
       .split(',')
       .map((o) => o.trim()),
     credentials: true,
+    // Nama file export laporan dibaca frontend dari header ini.
+    exposedHeaders: ['Content-Disposition'],
   });
   // File upload (development: disk lokal) disajikan di /uploads.
   app.useStaticAssets(app.get(LocalDiskStorage).root, {

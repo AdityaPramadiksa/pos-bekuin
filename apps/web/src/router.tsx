@@ -3,6 +3,8 @@ import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
 import { AdminMorePage } from '@/features/admin/AdminMorePage';
 import { ApprovalPage } from '@/features/admin/approval/ApprovalPage';
 import { CustomersPage } from '@/features/admin/customers/CustomersPage';
+import { FinancePage } from '@/features/finance/FinancePage';
+import { ReportsPage } from '@/features/reports/ReportsPage';
 import { MenuPage } from '@/features/admin/menu/MenuPage';
 import { RecipesPage } from '@/features/admin/recipes/RecipesPage';
 import { PrintQrPage } from '@/features/admin/tables/PrintQrPage';
@@ -84,6 +86,8 @@ export const router = createBrowserRouter([
               { path: 'lainnya/meja', element: <TablesPage /> },
               { path: 'lainnya/resep', element: <RecipesPage /> },
               { path: 'lainnya/pelanggan', element: <CustomersPage /> },
+              { path: 'lainnya/keuangan', element: <FinancePage /> },
+              { path: 'lainnya/laporan', element: <ReportsPage /> },
               { path: 'lainnya/pengaturan', element: <SettingsPage /> },
               { path: 'lainnya/metode-bayar', element: <PaymentMethodsPage /> },
               { path: 'lainnya/printer', element: <PrinterPage /> },

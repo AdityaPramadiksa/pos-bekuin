@@ -12,12 +12,13 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, MoneyInput } from '@/components/ui/input';
+import { Link } from 'react-router-dom';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { SourceBadge } from '@/features/orders/order-ui';
 import { categoryLabel } from '@/features/orders/order-format';
 import { isPrinterConnected, printReceipt } from '@/features/printer/receipt';
 import { api, assetUrl, errorMessage } from '@/lib/api';
-import { useOrder, usePaymentMethods, useSettings } from '@/lib/queries';
+import { useCurrentShift, useOrder, usePaymentMethods, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
 export function ApproveDialog({
@@ -51,6 +52,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   const queryClient = useQueryClient();
   const methods = usePaymentMethods();
   const settings = useSettings();
+  const shift = useCurrentShift();
   const [qty, setQty] = useState<Record<string, number>>(
     Object.fromEntries(order.items.map((i) => [i.id, i.qty])),
   );
@@ -81,8 +83,14 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   const isCash = method?.type === 'CASH';
   const change = isCash && paid !== '' ? paid - total : 0;
   const itemCount = Object.values(qty).filter((q) => q > 0).length;
+  // Cash masuk laci → wajib ada shift kasir terbuka (dicek juga di server).
+  const noShift = isCash && shift.isSuccess && !shift.data;
   const invalid =
-    !method || itemCount === 0 || discount > subtotal || (isCash && (paid === '' || paid < total));
+    !method ||
+    itemCount === 0 ||
+    discount > subtotal ||
+    noShift ||
+    (isCash && (paid === '' || paid < total));
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -372,7 +380,16 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         </div>
       </div>
 
-      {isCash && (
+      {noShift && (
+        <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          Belum ada shift kasir yang terbuka. Buka shift dulu untuk menerima cash, atau pilih metode
+          non-tunai.{' '}
+          <Link to="/admin/lainnya/keuangan" className="font-semibold underline" onClick={onClose}>
+            Buka shift
+          </Link>
+        </div>
+      )}
+      {isCash && !noShift && (
         <div className="space-y-2">
           <Field label="Uang diterima">
             <MoneyInput autoFocus value={paid} onChange={setPaid} />

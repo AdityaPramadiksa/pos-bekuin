@@ -19,8 +19,7 @@ interface MenuLink {
   label: string;
   description: string;
   icon: LucideIcon;
-  to?: string;
-  sprint?: string;
+  to: string;
 }
 
 const SECTIONS: { title: string; items: MenuLink[] }[] = [
@@ -66,13 +65,13 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         label: 'Pengeluaran & Shift Kasir',
         description: 'Biaya operasional, buka/tutup kasir',
         icon: Wallet,
-        sprint: 'Sprint 7',
+        to: '/admin/lainnya/keuangan',
       },
       {
         label: 'Laporan',
-        description: 'Penjualan, laba rugi, arus kas, export',
+        description: 'Penjualan, laba rugi, arus kas, tutup hari, export',
         icon: ReceiptText,
-        sprint: 'Sprint 7',
+        to: '/admin/lainnya/laporan',
       },
     ],
   },
@@ -126,24 +125,14 @@ export function AdminMorePage() {
                       <p className="text-sm font-medium">{item.label}</p>
                       <p className="truncate text-xs text-stone-500">{item.description}</p>
                     </div>
-                    {item.to ? (
-                      <ChevronRight className="size-4 text-stone-400" />
-                    ) : (
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
-                        {item.sprint}
-                      </span>
-                    )}
+                    <ChevronRight className="size-4 text-stone-400" />
                   </>
                 );
                 return (
                   <li key={item.label}>
-                    {item.to ? (
-                      <Link to={item.to} className="flex items-center gap-3 p-4 hover:bg-stone-50">
-                        {content}
-                      </Link>
-                    ) : (
-                      <div className="flex items-center gap-3 p-4 opacity-80">{content}</div>
-                    )}
+                    <Link to={item.to} className="flex items-center gap-3 p-4 hover:bg-stone-50">
+                      {content}
+                    </Link>
                   </li>
                 );
               })}
