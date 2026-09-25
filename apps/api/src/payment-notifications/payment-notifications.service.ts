@@ -16,8 +16,12 @@ type Tx = Prisma.TransactionClient;
 
 /** Kunci advisory: satu notifikasi diproses bergantian (duplikat & pencocokan aman). */
 const NOTIFICATION_LOCK = 7_240_003;
-/** Notifikasi yang sama persis dalam rentang ini dianggap duplikat (MacroDroid bisa terpicu 2×). */
-const DUPLICATE_WINDOW_MS = 10 * 60_000;
+/**
+ * Notifikasi yang sama persis dalam rentang ini dianggap duplikat (MacroDroid bisa terpicu 2×).
+ * Dibuat pendek karena notifikasi DANA tidak memuat nama pengirim: dua pembayaran asli dengan
+ * nominal sama terlihat identik.
+ */
+const DUPLICATE_WINDOW_MS = 2 * 60_000;
 /** Order QRIS yang dicocokkan: yang dibuat dalam 3 hari terakhir. */
 const MATCH_WINDOW_MS = 3 * 86_400_000;
 
@@ -92,7 +96,12 @@ export class PaymentNotificationsService {
           select: { id: true },
         });
         if (duplicate)
-          return record({ ...none, result: 'IGNORED', message: 'Duplikat notifikasi' });
+          return record({
+            ...none,
+            result: 'IGNORED',
+            message:
+              'Kemungkinan duplikat (notifikasi sama < 2 menit). Bila memang 2 pembayaran, setujui manual.',
+          });
         if (parsed.ignoreReason || parsed.amount === null)
           return record({ ...none, result: 'IGNORED', message: parsed.ignoreReason });
 

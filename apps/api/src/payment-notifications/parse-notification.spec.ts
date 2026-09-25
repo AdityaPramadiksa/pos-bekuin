@@ -32,6 +32,21 @@ describe('parsePaymentNotification', () => {
     }
   });
 
+  it('format asli notifikasi DANA Bisnis (HP admin, 25 Sep 2026)', () => {
+    expect(
+      parsePaymentNotification({
+        title: 'Pembayaran Masuk',
+        text: 'Rp10.000 diterima DANA Bisnis.',
+      }),
+    ).toEqual({ amount: 10000, incoming: true, ignoreReason: null });
+    expect(
+      parsePaymentNotification({
+        title: 'Pembayaran Masuk',
+        text: 'Rp66.037 diterima DANA Bisnis.',
+      }).amount,
+    ).toBe(66037);
+  });
+
   it('judul ikut dibaca', () => {
     expect(
       parsePaymentNotification({ title: 'Pembayaran diterima', text: 'Rp35.021 · BUDI' }),

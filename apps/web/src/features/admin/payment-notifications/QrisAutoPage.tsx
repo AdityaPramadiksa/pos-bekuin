@@ -202,7 +202,7 @@ function TestCard() {
           rows={2}
           value={text}
           maxLength={1000}
-          placeholder="Kamu menerima Rp25.037 dari ..."
+          placeholder="Rp10.037 diterima DANA Bisnis."
           onChange={(e) => setText(e.target.value)}
         />
       </Field>
