@@ -1,11 +1,16 @@
 import QRCode from 'qrcode';
 
 /** URL publik untuk QR meja. VITE_PUBLIC_WEB_URL (produksi) atau alamat yang sedang dipakai. */
-export function tableUrl(qrToken: string) {
+export function publicWebUrl(path: string) {
   const base =
     (import.meta.env.VITE_PUBLIC_WEB_URL as string | undefined) || window.location.origin;
-  return `${base.replace(/\/$/, '')}/m/${qrToken}`;
+  return `${base.replace(/\/$/, '')}${path}`;
 }
+
+export const tableUrl = (qrToken: string) => publicWebUrl(`/m/${qrToken}`);
+
+/** Link order online toko untuk dibagikan ke WhatsApp/Instagram. */
+export const onlineOrderUrl = (token: string) => publicWebUrl(`/pesan/${token}`);
 
 export function isLocalOrigin() {
   if (import.meta.env.VITE_PUBLIC_WEB_URL) return false;

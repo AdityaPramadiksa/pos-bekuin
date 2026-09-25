@@ -1,4 +1,5 @@
 import {
+  DELIVERY_METHOD_LABEL,
   FULFILLMENT_STATUS_LABEL,
   type FulfillmentStatus,
   ORDER_STATUS_LABEL,
@@ -32,9 +33,19 @@ export function FulfillmentBadge({ status }: { status: FulfillmentStatus }) {
   return <Badge tone={tone}>{FULFILLMENT_STATUS_LABEL[status]}</Badge>;
 }
 
-export function SourceBadge({ order }: { order: Pick<OrderView, 'source' | 'table'> }) {
+export function SourceBadge({
+  order,
+}: {
+  order: Pick<OrderView, 'source' | 'table'> & { deliveryMethod?: OrderView['deliveryMethod'] };
+}) {
   if (order.source === 'QR_TABLE')
     return <Badge tone="blue">QR · {order.table?.name ?? 'Meja'}</Badge>;
+  if (order.source === 'ONLINE')
+    return (
+      <Badge tone="brand">
+        Online{order.deliveryMethod ? ` · ${DELIVERY_METHOD_LABEL[order.deliveryMethod]}` : ''}
+      </Badge>
+    );
   return (
     <Badge tone={order.source === 'WA_IMPORT' ? 'green' : 'neutral'}>
       {SOURCE_LABEL[order.source]}

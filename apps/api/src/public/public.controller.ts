@@ -15,7 +15,7 @@ import { Throttle } from '@nestjs/throttler';
 import { MAX_UPLOAD_BYTES } from '@bekuin/shared';
 import { Public } from '../auth/decorators/public.decorator';
 import { PublicThrottlerGuard } from '../common/public-throttler.guard';
-import { CreatePublicOrderDto } from './dto/public-order.dto';
+import { CreateOnlineOrderDto, CreatePublicOrderDto } from './dto/public-order.dto';
 import { PublicService, QR_ORDER_ATTEMPTS_PER_10_MIN } from './public.service';
 
 /** Endpoint pelanggan QR (tanpa login). Lihat .claude/skills/bekuin-qr-order. */
@@ -37,6 +37,19 @@ export class PublicController {
   @Post('orders')
   createOrder(@Body() dto: CreatePublicOrderDto) {
     return this.publicService.createOrder(dto);
+  }
+
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get('online/:onlineToken/menu')
+  onlineMenu(@Param('onlineToken') onlineToken: string) {
+    return this.publicService.onlineMenu(onlineToken);
+  }
+
+  // Batas utama spam order online: maks. pesanan menunggu per No. WA + limit per IP.
+  @Throttle({ default: { limit: QR_ORDER_ATTEMPTS_PER_10_MIN, ttl: 10 * 60_000 } })
+  @Post('online-orders')
+  createOnlineOrder(@Body() dto: CreateOnlineOrderDto) {
+    return this.publicService.createOnlineOrder(dto);
   }
 
   @Throttle({ default: { limit: 120, ttl: 60_000 } })

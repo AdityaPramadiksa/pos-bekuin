@@ -103,3 +103,26 @@ export function settlePayment(
   if (paidAmount < total) throw new BadRequestException('Uang yang diterima kurang dari total');
   return { paidAmount, changeAmount: paidAmount - total };
 }
+
+/** Pesanan yang dibuat pelanggan sendiri (QR meja atau link online): isinya final. */
+export const isCustomerSource = (source: string) => source === 'QR_TABLE' || source === 'ONLINE';
+
+/**
+ * Pesanan pelanggan QR sudah final (pelanggan membayar sesuai isi & total pesanannya):
+ * admin hanya approve atau tolak, tidak mengubah item/jumlah dan tidak memberi diskon.
+ */
+export function assertCustomerOrderUnchanged(
+  source: string,
+  currentQty: ReadonlyMap<string, number>,
+  changes: { items?: { id: string; qty: number }[]; discount?: number },
+): void {
+  if (!isCustomerSource(source)) return;
+  if ((changes.items ?? []).some((c) => currentQty.get(c.id) !== c.qty)) {
+    throw new BadRequestException(
+      'Pesanan pelanggan tidak bisa diubah. Tolak dengan alasan bila ada item yang tidak tersedia.',
+    );
+  }
+  if ((changes.discount ?? 0) > 0) {
+    throw new BadRequestException('Pesanan pelanggan tidak bisa diberi diskon');
+  }
+}

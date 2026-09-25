@@ -98,7 +98,10 @@ export class ApproveItemDto {
 }
 
 export class ApproveOrderDto {
-  @ApiProperty() @IsString() paymentMethodId: string;
+  @ApiPropertyOptional({ description: 'Kosong = pakai cara bayar pilihan pelanggan (order QR)' })
+  @IsOptional()
+  @IsString()
+  paymentMethodId?: string;
 
   @ApiPropertyOptional({ description: 'Wajib untuk Cash: uang diterima (rupiah)' })
   @IsOptional()
@@ -145,7 +148,7 @@ export class ListOrdersDto {
   @IsOptional()
   @IsString()
   status?: string;
-  @ApiPropertyOptional({ description: 'POS,ADMIN,QR_TABLE,WA_IMPORT' })
+  @ApiPropertyOptional({ description: 'POS,ADMIN,QR_TABLE,WA_IMPORT,ONLINE' })
   @IsOptional()
   @IsString()
   source?: string;

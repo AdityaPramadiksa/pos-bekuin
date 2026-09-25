@@ -106,8 +106,6 @@ export interface UserView {
   createdAt: string;
 }
 
-export type QrPaymentMode = 'QRIS_ONLY' | 'QRIS_OR_CASHIER';
-
 export interface SettingsView {
   storeName: string;
   tagline: string | null;
@@ -115,12 +113,20 @@ export interface SettingsView {
   phone: string | null;
   receiptFooter: string | null;
   qrisImageUrl: string | null;
+  /** Teks QRIS statis (untuk QR bernominal per order); null = belum diatur. */
+  qrisPayload: string | null;
   logoUrl: string | null;
   isStoreOpen: boolean;
   openingHours: OpeningHours | null;
   qrOrderingEnabled: boolean;
-  qrPaymentMode: QrPaymentMode;
   qrMaxOrderTotal: number;
+  /** Token link order online (/pesan/<token>). */
+  onlineOrderToken: string | null;
+  onlineOrderingEnabled: boolean;
+  deliveryEnabled: boolean;
+  deliveryFee: number;
+  freeDeliveryMin: number;
+  deliveryNote: string | null;
   blockApproveOnLowStock: boolean;
   paperWidthChars: number;
 }

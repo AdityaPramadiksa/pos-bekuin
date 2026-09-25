@@ -24,6 +24,8 @@ import type {
 import { orderDetailInclude, orderInclude, toOrderEvent, toOrderView } from './order-mapper';
 import { nextOrderNo } from './order-number';
 import {
+  assertCustomerOrderUnchanged,
+  isCustomerSource,
   pcsByProduct,
   type PricedItem,
   type PricedVariant,
@@ -209,9 +211,12 @@ export class OrdersService {
           throw new BadRequestException('Tanggal kirim tidak boleh sebelum hari ini');
         data.deliveryDate = dateOnly(dto.deliveryDate);
       }
+      if (dto.items && isCustomerSource(order.source)) {
+        throw new BadRequestException('Isi pesanan pelanggan tidak bisa diubah');
+      }
       if (dto.items) {
         const { items, subtotal } = priceItems(dto.items, await this.loadVariants(tx, dto.items), {
-          customerFacing: order.source === 'QR_TABLE',
+          customerFacing: isCustomerSource(order.source),
         });
         if (deliveryKey === todayKey()) await this.assertAvailable(tx, items, id);
         await tx.orderItem.deleteMany({ where: { orderId: id } });
@@ -220,7 +225,7 @@ export class OrdersService {
         });
         data.subtotal = subtotal;
         data.discount = 0;
-        data.total = subtotal;
+        data.total = subtotal + order.deliveryFee;
       }
       await tx.order.update({ where: { id }, data });
       await tx.orderLog.create({ data: { orderId: id, action: 'EDITED', userId: user.sub } });
@@ -265,6 +270,22 @@ export class OrdersService {
   }
 
   async approveInTx(tx: Tx, id: string, dto: ApproveOrderDto, userId: string) {
+    const current = await tx.order.findUniqueOrThrow({
+      where: { id },
+      select: {
+        source: true,
+        paymentMethodId: true,
+        uniqueCode: true,
+        deliveryFee: true,
+        items: { select: { id: true, qty: true } },
+      },
+    });
+    assertCustomerOrderUnchanged(
+      current.source,
+      new Map(current.items.map((i) => [i.id, i.qty])),
+      dto,
+    );
+
     // 1. Koreksi qty oleh admin (0 = hapus item).
     for (const change of dto.items ?? []) {
       const item = await tx.orderItem.findFirst({ where: { id: change.id, orderId: id } });
@@ -294,10 +315,18 @@ export class OrdersService {
     const subtotal = items.reduce((sum, i) => sum + i.qty * i.price, 0);
     const discount = dto.discount ?? 0;
     if (discount > subtotal) throw new BadRequestException('Diskon melebihi subtotal');
-    const total = subtotal - discount;
-    const method = await tx.paymentMethod.findUnique({ where: { id: dto.paymentMethodId } });
+    // Ongkir pesanan online ikut ditagih (tidak kena diskon).
+    const total = subtotal - discount + current.deliveryFee;
+    // Order pelanggan QR: default cara bayar yang dipilih pelanggan.
+    const methodId = dto.paymentMethodId ?? current.paymentMethodId;
+    if (!methodId) throw new BadRequestException('Pilih metode bayar');
+    const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
     const payment = settlePayment(total, method.type, dto.paidAmount);
+    // QRIS pelanggan dibayar dengan kode unik: uang yang masuk = total + kode.
+    if (method.type === 'QRIS' && current.uniqueCode && methodId === current.paymentMethodId) {
+      payment.paidAmount = total + current.uniqueCode;
+    }
     // Uang cash masuk laci → wajib ada shift kasir terbuka (PRD 5.14).
     let cashSessionId: string | null = null;
     if (method.type === 'CASH') {
@@ -402,7 +431,16 @@ export class OrdersService {
       try {
         await this.prisma.$transaction(async (tx) => {
           const locked = await this.lockPending(tx, id, user);
-          await this.approveInTx(tx, id, { paymentMethodId, paidAmount: locked.total }, user.sub);
+          // Order pelanggan QR memakai cara bayar pilihannya sendiri.
+          await this.approveInTx(
+            tx,
+            id,
+            {
+              paymentMethodId: locked.paymentMethodId ?? paymentMethodId,
+              paidAmount: locked.total,
+            },
+            user.sub,
+          );
         });
         const view = await this.afterWrite(id, user, 'order.updated');
         results.push({ id, orderNo: view.orderNo, ok: true, message: null, total: view.total });

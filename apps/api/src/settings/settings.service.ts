@@ -1,10 +1,19 @@
+import { randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, type Setting } from '@prisma/client';
-import { type OpeningHours, type SettingsView, validateOpeningHours } from '@bekuin/shared';
+import {
+  qrisInfo,
+  QrisError,
+  type OpeningHours,
+  type SettingsView,
+  validateOpeningHours,
+} from '@bekuin/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import type { UpdateSettingsDto } from './dto/update-settings.dto';
 
 const SETTINGS_ID = 'default';
+/** Token acak 12 karakter (sama seperti QR meja) untuk link order online. */
+const newToken = () => randomBytes(9).toString('base64url');
 
 function toView(s: Setting): SettingsView {
   return {
@@ -14,14 +23,20 @@ function toView(s: Setting): SettingsView {
     phone: s.phone,
     receiptFooter: s.receiptFooter,
     qrisImageUrl: s.qrisImageUrl,
+    qrisPayload: s.qrisPayload,
     logoUrl: s.logoUrl,
     isStoreOpen: s.isStoreOpen,
     openingHours: (s.openingHours as OpeningHours | null) ?? null,
     qrOrderingEnabled: s.qrOrderingEnabled,
-    qrPaymentMode: s.qrPaymentMode,
     qrMaxOrderTotal: s.qrMaxOrderTotal,
     blockApproveOnLowStock: s.blockApproveOnLowStock,
     paperWidthChars: s.paperWidthChars,
+    onlineOrderToken: s.onlineOrderToken,
+    onlineOrderingEnabled: s.onlineOrderingEnabled,
+    deliveryEnabled: s.deliveryEnabled,
+    deliveryFee: s.deliveryFee,
+    freeDeliveryMin: s.freeDeliveryMin,
+    deliveryNote: s.deliveryNote,
   };
 }
 
@@ -31,10 +46,26 @@ export class SettingsService {
 
   async get(): Promise<SettingsView> {
     // Baris default dibuat otomatis bila seeder belum dijalankan.
-    const s = await this.prisma.setting.upsert({
+    let s = await this.prisma.setting.upsert({
       where: { id: SETTINGS_ID },
       update: {},
-      create: { id: SETTINGS_ID },
+      create: { id: SETTINGS_ID, onlineOrderToken: newToken() },
+    });
+    if (!s.onlineOrderToken) {
+      s = await this.prisma.setting.update({
+        where: { id: SETTINGS_ID },
+        data: { onlineOrderToken: newToken() },
+      });
+    }
+    return toView(s);
+  }
+
+  /** Ganti link order online; link lama langsung tidak berlaku. */
+  async rotateOnlineLink(): Promise<SettingsView> {
+    await this.get();
+    const s = await this.prisma.setting.update({
+      where: { id: SETTINGS_ID },
+      data: { onlineOrderToken: newToken() },
     });
     return toView(s);
   }
@@ -42,6 +73,8 @@ export class SettingsService {
   async update(dto: UpdateSettingsDto): Promise<SettingsView> {
     const hoursError = validateOpeningHours(dto.openingHours);
     if (hoursError) throw new BadRequestException(hoursError);
+
+    if (typeof dto.qrisPayload === 'string') dto.qrisPayload = this.validQris(dto.qrisPayload);
 
     const { openingHours, ...rest } = dto;
     const data: Prisma.SettingUpdateInput = { ...rest };
@@ -54,5 +87,20 @@ export class SettingsService {
       create: { id: SETTINGS_ID, ...(data as Prisma.SettingCreateInput) },
     });
     return toView(s);
+  }
+
+  /** Hanya QRIS statis yang valid (CRC benar) yang disimpan. */
+  private validQris(payload: string): string | null {
+    const text = payload.trim();
+    if (!text) return null;
+    try {
+      if (!qrisInfo(text).isStatic) {
+        throw new BadRequestException('Pakai QRIS statis toko (yang tanpa nominal)');
+      }
+    } catch (error) {
+      if (error instanceof QrisError) throw new BadRequestException(error.message);
+      throw error;
+    }
+    return text;
   }
 }

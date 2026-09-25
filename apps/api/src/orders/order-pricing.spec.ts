@@ -1,4 +1,10 @@
-import { pcsByProduct, type PricedVariant, priceItems, settlePayment } from './order-pricing';
+import {
+  assertCustomerOrderUnchanged,
+  pcsByProduct,
+  type PricedVariant,
+  priceItems,
+  settlePayment,
+} from './order-pricing';
 
 const base: Omit<PricedVariant, 'id' | 'categoryCode' | 'packSize' | 'price'> = {
   productId: 'udang',
@@ -83,5 +89,33 @@ describe('settlePayment', () => {
       paidAmount: 104000,
       changeAmount: 0,
     });
+  });
+});
+
+describe('assertCustomerOrderUnchanged', () => {
+  const qty = new Map([
+    ['i1', 1],
+    ['i2', 2],
+  ]);
+
+  it('order QR: ubah jumlah, hapus item, atau diskon ditolak', () => {
+    expect(() =>
+      assertCustomerOrderUnchanged('QR_TABLE', qty, { items: [{ id: 'i1', qty: 2 }] }),
+    ).toThrow(/tidak bisa diubah/);
+    expect(() =>
+      assertCustomerOrderUnchanged('QR_TABLE', qty, { items: [{ id: 'i2', qty: 0 }] }),
+    ).toThrow();
+    expect(() => assertCustomerOrderUnchanged('QR_TABLE', qty, { discount: 1000 })).toThrow(
+      /diskon/,
+    );
+  });
+
+  it('order QR tanpa perubahan lolos; order staff boleh dikoreksi', () => {
+    expect(() =>
+      assertCustomerOrderUnchanged('QR_TABLE', qty, { items: [{ id: 'i1', qty: 1 }], discount: 0 }),
+    ).not.toThrow();
+    expect(() =>
+      assertCustomerOrderUnchanged('POS', qty, { items: [{ id: 'i1', qty: 5 }], discount: 5000 }),
+    ).not.toThrow();
   });
 });

@@ -1,4 +1,11 @@
-import type { FulfillmentStatus, OrderSource, OrderStatus, OrderType, PaymentType } from './enums';
+import type {
+  DeliveryMethod,
+  FulfillmentStatus,
+  OrderSource,
+  OrderStatus,
+  OrderType,
+  PaymentType,
+} from './enums';
 
 export interface OrderItemView {
   id: string;
@@ -52,6 +59,12 @@ export interface OrderView {
   paymentRef: string | null;
   paymentProofUrl: string | null;
   payAtCashier: boolean;
+  /** Kode unik QRIS (order pelanggan); nominal masuk = total + kode unik. */
+  uniqueCode: number | null;
+  /** Pesanan online: cara terima, alamat antar, dan ongkir (sudah termasuk di total). */
+  deliveryMethod: DeliveryMethod | null;
+  deliveryAddress: string | null;
+  deliveryFee: number;
   reason: string | null;
   createdBy: { id: string; name: string } | null;
   approvedBy: { id: string; name: string } | null;
@@ -93,6 +106,7 @@ export const SOURCE_LABEL: Record<OrderSource, string> = {
   ADMIN: 'Admin',
   QR_TABLE: 'QR Meja',
   WA_IMPORT: 'WhatsApp',
+  ONLINE: 'Online',
 };
 
 export const ORDER_TYPE_LABEL: Record<OrderType, string> = {

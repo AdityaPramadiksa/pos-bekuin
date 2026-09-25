@@ -203,7 +203,14 @@ function PackingCard({
         )}
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{o.customerName ?? '(tanpa nama)'}</p>
-          <p className="text-xs text-stone-500">{o.orderNo}</p>
+          <p className="text-xs text-stone-500">
+            {o.orderNo}
+            {o.deliveryMethod === 'DELIVERY'
+              ? ` · Antar: ${o.deliveryAddress ?? '-'}`
+              : o.deliveryMethod === 'PICKUP'
+                ? ' · Ambil sendiri'
+                : ''}
+          </p>
         </div>
         <div className="text-right">
           <p className="font-bold">{formatRupiah(o.total)}</p>

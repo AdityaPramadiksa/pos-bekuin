@@ -60,7 +60,7 @@ async function main() {
   });
 
   const paymentMethods: [string, PaymentType, boolean][] = [
-    ['Cash', 'CASH', false],
+    ['Cash', 'CASH', true],
     ['Transfer', 'TRANSFER', false],
     ['QRIS', 'QRIS', true],
   ];

@@ -20,7 +20,8 @@ Spesifikasi lengkap ada di [PRD.md](PRD.md).
 - **Laporan:** penjualan, laba rugi, laba per produk, produk terlaris, arus kas, mutasi stok, shift, layanan QR, rekap harian (cetak 58mm), export Excel/CSV, grafik 7 hari di dashboard
 
 **Pelanggan (tanpa akun)**
-- Scan QR di meja → pesan → bayar QRIS (unggah bukti) atau di kasir → lacak status realtime sampai pesanan siap
+- Scan QR di meja → pesan → bayar QRIS (nominal otomatis) atau cash → lacak status realtime sampai pesanan siap
+- **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/COD
 
 ## Tampilan
 

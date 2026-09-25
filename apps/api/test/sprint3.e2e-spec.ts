@@ -17,6 +17,8 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
   let hiddenVariant: string; // kategori tersembunyi
   let hiddenCategoryId: string;
   let qrisId: string;
+  let transferId: string;
+  let originalMethods: { id: string; showToCustomer: boolean }[];
   let originalSettings: Record<string, unknown>;
   const api = () => ctx.api();
 
@@ -34,7 +36,6 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
         isStoreOpen: true,
         qrOrderingEnabled: true,
         openingHours: undefined,
-        qrPaymentMode: 'QRIS_ONLY',
         qrMaxOrderTotal: 200000,
       },
     });
@@ -71,6 +72,13 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     qrToken = table.body.qrToken;
     expect(qrToken).toMatch(/^[\w-]{12}$/);
     qrisId = (await p.paymentMethod.findUniqueOrThrow({ where: { name: 'QRIS' } })).id;
+    transferId = (await p.paymentMethod.findUniqueOrThrow({ where: { name: 'Transfer' } })).id;
+    originalMethods = await p.paymentMethod.findMany({
+      select: { id: true, showToCustomer: true },
+    });
+    // Pelanggan boleh memilih QRIS, tidak boleh Transfer.
+    await p.paymentMethod.update({ where: { id: qrisId }, data: { showToCustomer: true } });
+    await p.paymentMethod.update({ where: { id: transferId }, data: { showToCustomer: false } });
   });
 
   afterAll(async () => {
@@ -85,6 +93,12 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     await p.diningTable.delete({ where: { id: tableId } });
     const { id: _i, updatedAt: _u, ...rest } = originalSettings;
     await p.setting.update({ where: { id: 'default' }, data: rest as never });
+    for (const m of originalMethods) {
+      await p.paymentMethod.update({
+        where: { id: m.id },
+        data: { showToCustomer: m.showToCustomer },
+      });
+    }
     await ctx.close();
   });
 
@@ -96,6 +110,7 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
         customerName: 'e2e Andi',
         type: 'DINE_IN',
         items: [{ variantId: sm6, qty: 1 }],
+        paymentMethodId: qrisId,
         ...body,
       });
 
@@ -123,7 +138,7 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     expect(tooBig.status).toBe(400);
     expect(tooBig.body.message).toMatch(/batas/);
     await order({ items: [{ variantId: sm6, qty: 1, price: 1 }] }).expect(400);
-    await order({ payAtCashier: true }).expect(400); // mode QRIS_ONLY
+    await order({ paymentMethodId: transferId }).expect(400); // tidak tampil ke pelanggan
   });
 
   let publicToken: string;
@@ -170,9 +185,12 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     const saved = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken } });
     const approved = await admin
       .as(api().post(`/api/v1/orders/${saved.id}/approve`))
-      .send({ paymentMethodId: qrisId })
+      .send({})
       .expect(200);
     expect(approved.body.paymentProofUrl).toMatch(/^\/uploads\/proof\//);
+    // Cara bayar pilihan pelanggan (QRIS) dipakai; uang masuk = total + kode unik.
+    expect(approved.body.paymentMethod.name).toBe('QRIS');
+    expect(approved.body.paidAmount).toBe(25000 + saved.uniqueCode!);
 
     const queue = await staff.as(api().get('/api/v1/kitchen/queue')).expect(200);
     expect(queue.body.map((o: { id: string }) => o.id)).toContain(saved.id);

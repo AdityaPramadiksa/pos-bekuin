@@ -107,6 +107,7 @@ export function OrdersPage() {
             <option value="ADMIN">Admin</option>
             <option value="QR_TABLE">QR Meja</option>
             <option value="WA_IMPORT">WhatsApp</option>
+            <option value="ONLINE">Online</option>
           </Select>
           <Select
             aria-label="Metode bayar"

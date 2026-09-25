@@ -1,4 +1,9 @@
-import { formatRupiah, type PublicMenuResponse, type PublicOrderCreated } from '@bekuin/shared';
+import {
+  calcDeliveryFee,
+  formatRupiah,
+  type PublicMenuResponse,
+  type PublicOrderCreated,
+} from '@bekuin/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Clock, Minus, Plus, ReceiptText, ShoppingBag, UtensilsCrossed } from 'lucide-react';
 import { useState } from 'react';
@@ -10,15 +15,39 @@ import { Field, Input, Textarea } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { assetUrl, errorMessage, publicApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { formatDateKey } from '@/features/orders/order-format';
 import { cartTotals, getCartStore } from '@/stores/cart';
 import { loadMyOrders, saveMyOrder } from './my-orders';
+import { sortCustomerMethods } from './payment-methods';
+import { OnlineFields, type OnlineDelivery } from './OnlineFields';
+import { loadAddress, saveAddress } from './online-profile';
+import { PaymentChoice } from './PaymentChoice';
+
+/** QR meja (/m/<qrToken>) atau link order online toko (/pesan/<token>). */
+type Channel = { kind: 'table' | 'online'; token: string };
 
 export function CustomerMenuPage() {
   const { qrToken = '' } = useParams();
+  return <MenuLoader channel={{ kind: 'table', token: qrToken }} />;
+}
+
+/** Link order online untuk pelanggan jarak jauh (WhatsApp, Instagram). */
+export function OnlineOrderPage() {
+  const { token = '' } = useParams();
+  return <MenuLoader channel={{ kind: 'online', token }} />;
+}
+
+function MenuLoader({ channel }: { channel: Channel }) {
   const menu = useQuery({
-    queryKey: ['public-menu', qrToken],
+    queryKey: ['public-menu', channel.kind, channel.token],
     queryFn: async () =>
-      (await publicApi.get<PublicMenuResponse>(`/public/tables/${qrToken}/menu`)).data,
+      (
+        await publicApi.get<PublicMenuResponse>(
+          channel.kind === 'table'
+            ? `/public/tables/${channel.token}/menu`
+            : `/public/online/${channel.token}/menu`,
+        )
+      ).data,
     retry: false,
     refetchInterval: 60_000, // ketersediaan menu & status buka ikut diperbarui
   });
@@ -37,19 +66,31 @@ export function CustomerMenuPage() {
       </div>
     );
   }
-  return <Menu qrToken={qrToken} data={menu.data} />;
+  return <Menu channel={channel} data={menu.data} />;
 }
 
-function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) {
+function Menu({ channel, data }: { channel: Channel; data: PublicMenuResponse }) {
   const navigate = useNavigate();
-  const useCart = getCartStore(`qr-${qrToken}`);
+  const online = data.online;
+  const menuPath = channel.kind === 'table' ? `/m/${channel.token}` : `/pesan/${channel.token}`;
+  const placeName = data.table?.name ?? 'Order Online';
+  const useCart = getCartStore(channel.kind === 'table' ? `qr-${channel.token}` : 'online');
   const { lines, meta, add, setQty, setMeta, clear } = useCart();
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [payAtCashier, setPayAtCashier] = useState(false);
+  // Cara bayar: bawaan QRIS bila tersedia.
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(
+    () => sortCustomerMethods(data.paymentMethods)[0]?.id ?? null,
+  );
   // QR meja: bawaan makan di tempat.
   const [orderType, setOrderType] = useState<'DINE_IN' | 'TAKEAWAY'>('DINE_IN');
-  const myOrders = loadMyOrders().filter((o) => o.qrToken === qrToken);
+  // Link online: ambil/antar, alamat (diingat di HP ini), dan tanggal kirim.
+  const [delivery, setDelivery] = useState<OnlineDelivery>(() => ({
+    method: online?.deliveryEnabled ? 'DELIVERY' : 'PICKUP',
+    address: loadAddress(),
+    date: online?.earliestDate ?? '',
+  }));
+  const myOrders = loadMyOrders().filter((o) => (o.menuPath ?? `/m/${o.qrToken}`) === menuPath);
 
   const category = data.categories.find((c) => c.id === categoryId) ?? data.categories[0];
   const products = data.products.filter((p) =>
@@ -57,28 +98,51 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
   );
   const totals = cartTotals(lines);
   const overLimit = totals.total > data.maxOrderTotal;
+  const deliveryFee =
+    online && delivery.method === 'DELIVERY' ? calcDeliveryFee(totals.total, online) : 0;
+  const grandTotal = totals.total + deliveryFee;
+  const phoneOk = /^[0-9+\-\s]{8,20}$/.test(meta.customerPhone.trim());
+  const onlineInvalid =
+    !!online &&
+    (!phoneOk ||
+      !delivery.date ||
+      (delivery.method === 'DELIVERY' && delivery.address.trim().length < 10));
   const qtyOf = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
 
   const submit = useMutation({
     mutationFn: async () =>
       (
-        await publicApi.post<PublicOrderCreated>('/public/orders', {
-          qrToken,
-          items: lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
-          customerName: meta.customerName.trim(),
-          customerPhone: meta.customerPhone.trim() || null,
-          type: data.table.isTakeaway ? 'TAKEAWAY' : orderType,
-          note: meta.note.trim() || null,
-          payAtCashier: data.qrPaymentMode === 'QRIS_OR_CASHIER' ? payAtCashier : undefined,
-        })
+        await publicApi.post<PublicOrderCreated>(
+          channel.kind === 'table' ? '/public/orders' : '/public/online-orders',
+          {
+            ...(channel.kind === 'table'
+              ? {
+                  qrToken: channel.token,
+                  type: data.table?.isTakeaway ? 'TAKEAWAY' : orderType,
+                  customerPhone: meta.customerPhone.trim() || null,
+                }
+              : {
+                  onlineToken: channel.token,
+                  customerPhone: meta.customerPhone.trim(),
+                  deliveryMethod: delivery.method,
+                  deliveryAddress: delivery.method === 'DELIVERY' ? delivery.address.trim() : null,
+                  deliveryDate: delivery.date,
+                }),
+            items: lines.map((l) => ({ variantId: l.variantId, qty: l.qty })),
+            customerName: meta.customerName.trim(),
+            note: meta.note.trim() || null,
+            paymentMethodId,
+          },
+        )
       ).data,
     onSuccess: (created) => {
       saveMyOrder({
         ...created,
-        qrToken,
-        tableName: data.table.name,
+        menuPath,
+        tableName: placeName,
         createdAt: new Date().toISOString(),
       });
+      if (online && delivery.method === 'DELIVERY') saveAddress(delivery.address.trim());
       clear();
       setMeta({ customerName: meta.customerName, customerPhone: meta.customerPhone }); // ingat nama untuk pesan lagi
       navigate(`/o/${created.publicToken}`);
@@ -104,7 +168,7 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
             {data.store.tagline && <p className="text-xs text-white/80">{data.store.tagline}</p>}
           </div>
           <span className="text-brand-700 rounded-full bg-white px-3 py-1 text-sm font-bold">
-            {data.table.name}
+            {placeName}
           </span>
         </div>
         {myOrders.length > 0 && (
@@ -121,10 +185,18 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
         <div className="m-4 rounded-2xl bg-white p-6 text-center shadow-sm">
           <Clock className="mx-auto size-10 text-stone-400" />
           <p className="mt-2 font-semibold">{data.store.closedReason}</p>
-          <p className="mt-1 text-sm text-stone-500">Silakan pesan langsung di kasir.</p>
+          {data.table && (
+            <p className="mt-1 text-sm text-stone-500">Silakan pesan langsung di kasir.</p>
+          )}
         </div>
       ) : (
         <>
+          {online && !online.acceptingToday && (
+            <p className="mx-4 mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Toko sedang tutup. Pesanan kamu dijadwalkan mulai{' '}
+              <b>{formatDateKey(online.earliestDate)}</b>.
+            </p>
+          )}
           <nav className="bg-cream/95 sticky top-0 z-10 flex gap-2 overflow-x-auto border-b border-stone-200 px-4 py-3 backdrop-blur">
             {data.categories.map((c) => (
               <button
@@ -235,7 +307,7 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         title="Pesanan kamu"
-        description={data.table.name}
+        description={placeName}
       >
         <div className="space-y-4">
           <ul className="divide-y divide-stone-100">
@@ -258,7 +330,10 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
             ))}
           </ul>
 
-          <Field label="Nama kamu" hint="Untuk memanggil saat pesanan siap">
+          <Field
+            label={online ? 'Nama penerima' : 'Nama kamu'}
+            hint={online ? undefined : 'Untuk memanggil saat pesanan siap'}
+          >
             <Input
               value={meta.customerName}
               maxLength={40}
@@ -266,29 +341,42 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
               onChange={(e) => setMeta({ customerName: e.target.value })}
             />
           </Field>
-          <Field label="No. WhatsApp (opsional)">
-            <Input
-              inputMode="tel"
-              value={meta.customerPhone}
-              maxLength={20}
-              onChange={(e) => setMeta({ customerPhone: e.target.value })}
+          {online ? (
+            <OnlineFields
+              online={online}
+              phone={meta.customerPhone}
+              onPhone={(customerPhone) => setMeta({ customerPhone })}
+              value={delivery}
+              onChange={setDelivery}
+              deliveryFee={deliveryFee}
             />
-          </Field>
-          {!data.table.isTakeaway && (
-            <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
-              {(['DINE_IN', 'TAKEAWAY'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setOrderType(t)}
-                  className={cn(
-                    'flex-1 rounded-lg py-2 text-sm font-medium',
-                    orderType === t ? 'bg-white shadow-sm' : 'text-stone-500',
-                  )}
-                >
-                  {t === 'DINE_IN' ? 'Makan di sini' : 'Bawa pulang'}
-                </button>
-              ))}
-            </div>
+          ) : (
+            <>
+              <Field label="No. WhatsApp (opsional)">
+                <Input
+                  inputMode="tel"
+                  value={meta.customerPhone}
+                  maxLength={20}
+                  onChange={(e) => setMeta({ customerPhone: e.target.value })}
+                />
+              </Field>
+              {!data.table?.isTakeaway && (
+                <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
+                  {(['DINE_IN', 'TAKEAWAY'] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setOrderType(t)}
+                      className={cn(
+                        'flex-1 rounded-lg py-2 text-sm font-medium',
+                        orderType === t ? 'bg-white shadow-sm' : 'text-stone-500',
+                      )}
+                    >
+                      {t === 'DINE_IN' ? 'Makan di sini' : 'Bawa pulang'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
           <Field label="Catatan (opsional)">
             <Textarea
@@ -301,48 +389,60 @@ function Menu({ qrToken, data }: { qrToken: string; data: PublicMenuResponse }) 
           </Field>
 
           <div>
-            <p className="mb-2 text-sm font-medium">Pembayaran</p>
-            {data.qrPaymentMode === 'QRIS_OR_CASHIER' ? (
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { value: false, label: 'QRIS sekarang' },
-                  { value: true, label: 'Bayar di kasir' },
-                ].map((o) => (
-                  <button
-                    key={o.label}
-                    onClick={() => setPayAtCashier(o.value)}
-                    className={cn(
-                      'rounded-xl border px-3 py-3 text-sm font-semibold',
-                      payAtCashier === o.value
-                        ? 'border-brand-700 bg-brand-50 text-brand-700'
-                        : 'border-stone-300',
-                    )}
-                  >
-                    {o.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="rounded-xl bg-stone-100 px-3 py-2 text-sm">
-                QRIS — scan & bayar dari HP setelah pesan (GoPay, OVO, DANA, m-banking).
-              </p>
-            )}
+            <p className="mb-2 text-sm font-medium">Cara bayar</p>
+            <PaymentChoice
+              methods={data.paymentMethods}
+              value={paymentMethodId}
+              onChange={setPaymentMethodId}
+              hints={
+                online
+                  ? {
+                      CASH:
+                        delivery.method === 'DELIVERY'
+                          ? 'Bayar tunai saat pesanan diterima (COD)'
+                          : 'Bayar tunai saat mengambil pesanan',
+                    }
+                  : undefined
+              }
+            />
           </div>
 
-          <div className="flex items-baseline justify-between border-t border-stone-100 pt-3">
-            <span className="text-sm text-stone-600">Total</span>
-            <span className="text-2xl font-bold">{formatRupiah(totals.total)}</span>
+          <div className="space-y-1 border-t border-stone-100 pt-3">
+            {deliveryFee > 0 || (online && delivery.method === 'DELIVERY') ? (
+              <>
+                <div className="flex justify-between text-sm text-stone-600">
+                  <span>Subtotal</span>
+                  <span>{formatRupiah(totals.total)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-stone-600">
+                  <span>Ongkir</span>
+                  <span>{deliveryFee ? formatRupiah(deliveryFee) : 'Gratis'}</span>
+                </div>
+              </>
+            ) : null}
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm text-stone-600">Total</span>
+              <span className="text-2xl font-bold">{formatRupiah(grandTotal)}</span>
+            </div>
           </div>
           {overLimit && (
             <p className="text-sm text-red-600">
-              Total melebihi batas {formatRupiah(data.maxOrderTotal)} untuk pesanan meja. Silakan
-              pesan di kasir.
+              Total melebihi batas {formatRupiah(data.maxOrderTotal)}.{' '}
+              {online
+                ? 'Untuk pesanan besar, hubungi kami lewat WhatsApp.'
+                : 'Silakan pesan di kasir.'}
             </p>
           )}
           <Button
             size="lg"
             className="w-full"
-            disabled={lines.length === 0 || meta.customerName.trim().length < 2 || overLimit}
+            disabled={
+              lines.length === 0 ||
+              meta.customerName.trim().length < 2 ||
+              overLimit ||
+              onlineInvalid ||
+              !paymentMethodId
+            }
             loading={submit.isPending}
             onClick={() => submit.mutate()}
           >

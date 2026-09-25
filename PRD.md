@@ -204,11 +204,11 @@ sequenceDiagram
   API-->>S: Socket order.paid / status pesanan
 ```
 
-Admin membuka order, memeriksa isi, dan bisa mengubah qty atau menghapus item sebelum approve. Kemudian admin memilih metode bayar:
+Admin membuka order dan memeriksa isinya. Order dari **staff/WhatsApp** boleh dikoreksi (ubah qty, hapus item, diskon) lalu admin memilih metode bayar. Order dari **pelanggan QR sudah final**: item, jumlah, dan diskon dikunci (admin hanya approve atau tolak dengan alasan), dan metode bayar otomatis memakai **pilihan pelanggan** (admin tetap bisa menggantinya bila pelanggan berubah pikiran).
 
 - **Cash:** input uang diterima, sistem hitung kembalian, tombol nominal cepat (Uang pas, 50.000, 100.000). Hanya bisa bila ada **shift kasir** yang terbuka (5.14).
 - **Transfer:** pilih rekening tujuan, input referensi (opsional).
-- **QRIS:** tampilkan gambar QRIS statis toko untuk dipindai pelanggan. Untuk order QR, admin melihat **bukti bayar** yang diunggah pelanggan, mengecek mutasi di aplikasi merchant, lalu mengonfirmasi.
+- **QRIS:** dari QRIS statis toko, sistem membuat **QR bernominal** (tag 54, CRC dihitung ulang) sehingga pembayar tidak perlu mengetik nominal. Order staff: QR bernominal tampil di layar kasir untuk di-scan pelanggan. Order QR pelanggan: nominal = total + **kode unik Rp1–99**, dan admin mencocokkan nominal itu dengan notifikasi DANA/mutasi QRIS sebelum approve. Bukti bayar hanya opsional (bila sudah bayar tapi belum dikonfirmasi). QRIS statis tidak punya notifikasi otomatis; konfirmasi otomatis penuh butuh payment gateway (backlog).
 - Metode bayar dikelola di master data (bisa tambah ShopeePay, Dana, dll).
 - Diskon per order opsional (nominal atau persen), hanya oleh admin.
 
@@ -274,9 +274,11 @@ sequenceDiagram
 3. **Menu:** tab kategori (hanya `isCustomerVisible`, misal Siap Makan dan Frozen untuk dibawa pulang), kartu produk dengan foto, deskripsi, harga per varian, dan label **Habis** bila stok kurang atau ditandai habis.
 4. **Keranjang** disimpan di localStorage per meja. Ada batas total order (`qrMaxOrderTotal`, default Rp1.000.000).
 5. **Checkout:** nama (wajib, untuk dipanggil), No. WA (opsional), **Makan di sini / Bawa pulang**, catatan, metode bayar.
-   - `QRIS_ONLY` (default): pelanggan wajib bayar QRIS.
-   - `QRIS_OR_CASHIER`: ada pilihan tambahan "Bayar di kasir".
-6. **Pembayaran QRIS:** halaman lacak menampilkan gambar QRIS statis toko, **total yang harus dibayar**, dan nomor order. Pelanggan membayar dari aplikasi e-wallet/m-banking, lalu mengunggah screenshot bukti (opsional tapi dianjurkan).
+   - Pilihan cara bayar berupa kartu radio dari metode bayar yang ditandai **Tampil di QR pelanggan** (bawaan: QRIS dan Cash; Transfer bisa dinyalakan). QRIS terpilih sebagai bawaan.
+6. **Pembayaran:**
+   - **QRIS:** halaman lacak menampilkan **QR bernominal** (total + kode unik), nominal besar yang bisa disalin, tombol **Simpan QR ke galeri** (untuk scan dari galeri di HP yang sama), dan langkah bayar. Unggah bukti bayar disembunyikan di "Sudah bayar tapi belum dikonfirmasi?". Bila toko belum mengatur teks QRIS, gambar QRIS statis tampil dan pelanggan mengetik nominal sendiri.
+   - **Cash:** pelanggan membayar tunai ke kasir dengan menyebut nomor pesanan; admin mengisi uang diterima & kembalian saat approve (wajib shift terbuka).
+   - **Transfer:** tampil info rekening dan nominal; bukti bayar opsional.
 7. **Lacak pesanan** `/o/<publicToken>` (realtime lewat Socket.IO room `order:<publicToken>`):
 
 | Status sistem | Tampilan ke pelanggan |
@@ -306,6 +308,17 @@ sequenceDiagram
 - Order QR yang PENDING lebih dari 30 menit tanpa bukti bayar diberi tanda "Kedaluwarsa?" agar admin bisa menolaknya.
 
 **Fase berikutnya:** QRIS dinamis per order lewat payment gateway (Midtrans/Xendit). Dengan itu, status PAID terisi otomatis dari webhook tanpa perlu konfirmasi manual admin.
+
+### 5.5b Link Order Online (pelanggan jarak jauh)
+
+Untuk pelanggan yang memesan dari rumah (WhatsApp, Instagram), toko membagikan **satu link** `https://<domain>/pesan/<token>` beserta QR-nya (menu **Lainnya → Link Order Online**: salin link, kirim ke WhatsApp, bagikan, unduh QR, ganti link bila disalahgunakan).
+
+- **Menu** sama dengan QR meja (kategori `isCustomerVisible`, harga dari server).
+- **Checkout:** nama penerima, **No. WA wajib**, cara terima **Diantar** (alamat + patokan wajib) atau **Ambil sendiri** (alamat toko), **tanggal kirim/ambil**, catatan, cara bayar (**QRIS** bernominal + kode unik, atau **Cash/COD** saat diterima/diambil).
+- **Jadwal:** link aktif kapan saja. Saat toko buka boleh untuk hari ini; di luar jam buka atau toko tutup, paling cepat besok; maksimal 14 hari ke depan. Pesanan tanggal depan tidak dicek stok saat dibuat (dicek saat approve) dan masuk Rekap Produksi & Packing.
+- **Ongkir tetap** (Pengaturan order online) + **gratis ongkir** mulai subtotal tertentu; ongkir masuk total (tidak kena diskon). Admin bisa mematikan layanan antar atau order online sementara.
+- **Batas spam:** maksimal 3 pesanan menunggu per No. WA (nomor dinormalkan), plus rate limit per IP.
+- Sumber order **Online** (terpisah di laporan). Order online dikunci seperti order QR: admin hanya approve/tolak; approval, detail order, packing, tagihan, dan struk menampilkan alamat, No. WA (tautan chat), dan ongkir.
 
 ### 5.6 Meja & QR, dan Antrian Dapur — baru
 
@@ -483,7 +496,7 @@ Order VOIDED dan REJECTED tidak dihitung sebagai omzet, tetapi jumlahnya ditampi
 
 ### 5.17 Pengaturan Toko
 
-Nama toko, tagline, alamat, No. WA, logo, footer struk, gambar QRIS statis, lebar kertas (32 karakter). Lalu: **toko buka/tutup** (toggle cepat), **jam buka per hari**, **self-order QR aktif/nonaktif**, mode bayar QR (`QRIS_ONLY` / `QRIS_OR_CASHIER`), batas total order QR, dan blokir approve bila stok kurang.
+Nama toko, tagline, alamat, No. WA, logo, footer struk, gambar QRIS statis (isi QR-nya dibaca otomatis untuk membuat QR bernominal; ditampilkan nama toko & NMID sebagai konfirmasi), lebar kertas (32 karakter). Lalu: **toko buka/tutup** (toggle cepat), **jam buka per hari**, **self-order QR aktif/nonaktif**, batas total order QR, dan blokir approve bila stok kurang.
 
 ## 6. Model Data
 
@@ -655,7 +668,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Payment | `GET/POST/PATCH /payment-methods` | Login (baca) / Admin | Metode bayar ✅ |
 | Katalog | `GET /catalog` | Login | Menu aktif + varian + stok tersedia (layar POS) ✅ |
 | **Publik** | `GET /public/tables/:qrToken/menu` | Publik | Info toko, meja, status buka, menu pelanggan ✅ |
-| **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, `payAtCashier`. Balikan `orderNo`, `publicToken`, `total` ✅ |
+| **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, `paymentMethodId` (hanya metode yang tampil ke pelanggan). Balikan `orderNo`, `publicToken`, `total` ✅ |
 | **Publik** | `GET /public/orders/:publicToken` | Publik | Status + item + total + QRIS ✅ |
 | **Publik** | `POST /public/orders/:publicToken/payment-proof`, `POST /public/orders/:publicToken/cancel` | Publik | Unggah bukti, batal ✅ |
 | Orders | `POST /orders` | Login | Buat order PENDING (POS) ✅ |
@@ -899,3 +912,5 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 1.0 | 21 Sep 2026 | PRD awal: order, approval, stok, produksi, HPP, struk 58mm, laporan |
 | 1.1 | 21 Sep 2026 | Pre-order massal via tempel pesan, rekap produksi, packing, tagihan, approve massal |
 | 2.0 | 25 Sep 2026 | **Final.** Role Pelanggan + self-order QR meja (QRIS, lacak pesanan), Meja & QR, Antrian Dapur, CRUD menu diperjelas, Pengeluaran, Shift Kasir, laporan Laba Rugi & Arus Kas, pengaturan jam buka. Urutan sprint diubah (jualan dulu). Stack dipastikan: NestJS 11, Prisma 6, React 19, Vite 7, Tailwind 4. Sprint 0 selesai. Printer ditetapkan: Axelpos/Iware C58BT. |
+| 2.1 | 25 Sep 2026 | Pelanggan QR memilih cara bayar sendiri (QRIS / Cash, diatur di Metode Bayar). QRIS bernominal dari QRIS statis toko + kode unik Rp1–99; bukti bayar jadi opsional. Order pelanggan QR dikunci saat approval (tanpa ubah item/diskon), metode bayar mengikuti pilihan pelanggan. QR bernominal di layar kasir untuk order staff. |
+| 2.2 | 25 Sep 2026 | **Link Order Online** untuk pelanggan jarak jauh: satu link + QR toko, ambil sendiri/diantar, ongkir tetap + gratis ongkir, pilih tanggal (pre-order kapan saja), bayar QRIS/COD, batas pesanan menunggu per No. WA, sumber order Online. |

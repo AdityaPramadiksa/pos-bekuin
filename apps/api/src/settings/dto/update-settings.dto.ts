@@ -1,8 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { QrPaymentMode } from '@prisma/client';
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
   IsObject,
   IsOptional,
@@ -30,6 +28,13 @@ export class UpdateSettingsDto {
   @Matches(UPLOAD_URL, { message: 'URL gambar QRIS tidak valid' })
   qrisImageUrl?: string | null;
 
+  @ApiPropertyOptional({ description: 'Teks QRIS statis (hasil baca gambar QRIS toko)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(512)
+  qrisPayload?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -45,10 +50,6 @@ export class UpdateSettingsDto {
   openingHours?: Record<string, [string, string] | null> | null;
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() qrOrderingEnabled?: boolean;
-  @ApiPropertyOptional({ enum: QrPaymentMode })
-  @IsOptional()
-  @IsEnum(QrPaymentMode)
-  qrPaymentMode?: QrPaymentMode;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -56,6 +57,33 @@ export class UpdateSettingsDto {
   @Min(10_000)
   @Max(100_000_000)
   qrMaxOrderTotal?: number;
+
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() onlineOrderingEnabled?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() deliveryEnabled?: boolean;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Ongkir tetap (rupiah)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(1_000_000)
+  deliveryFee?: number;
+
+  @ApiPropertyOptional({
+    example: 100000,
+    description: 'Gratis ongkir mulai subtotal ini; 0 = tidak ada',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  freeDeliveryMin?: number;
+
+  @ApiPropertyOptional({ example: 'Antar area Denpasar, jam 10.00–17.00' })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsString()
+  @MaxLength(150)
+  deliveryNote?: string | null;
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() blockApproveOnLowStock?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(24) @Max(48) paperWidthChars?: number;

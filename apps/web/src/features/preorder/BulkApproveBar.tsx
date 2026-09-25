@@ -85,7 +85,8 @@ export function BulkApproveBar({
             </Button>
           </div>
           <p className="mx-auto mt-1 max-w-3xl text-xs text-stone-500">
-            Untuk cash yang perlu kembalian, approve satu per satu.
+            Metode ini untuk order staff/WA; order pelanggan QR memakai cara bayar pilihannya. Cash
+            yang perlu kembalian: approve satu per satu.
           </p>
         </div>
       )}
