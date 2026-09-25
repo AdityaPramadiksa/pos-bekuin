@@ -2,7 +2,16 @@ import type { LoginResponse } from '@bekuin/shared';
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/auth';
 
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api/v1';
+export const API_URL: string = import.meta.env.VITE_API_URL || '/api/v1';
+
+/** Origin API untuk file upload: kosong bila API di alamat yang sama (proxy dev). */
+const API_ORIGIN = /^https?:\/\//.test(API_URL) ? new URL(API_URL).origin : '';
+
+/** "/uploads/menu/x.webp" -> URL yang bisa dipakai di <img>. */
+export function assetUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  return /^https?:\/\//.test(path) ? path : `${API_ORIGIN}${path}`;
+}
 
 export const api = axios.create({ baseURL: API_URL });
 
@@ -52,7 +61,10 @@ export function errorMessage(error: unknown): string {
     const message = (error.response?.data as { message?: string | string[] } | undefined)?.message;
     if (Array.isArray(message)) return message.join(', ');
     if (message) return message;
-    if (!error.response) return 'Tidak bisa terhubung ke server';
+    if ([500, 502, 503, 504].includes(error.response?.status ?? 0)) {
+      return 'Server API belum siap. Tunggu sebentar lalu coba lagi.';
+    }
+    if (!error.response) return 'Tidak bisa terhubung ke server. Pastikan API sudah jalan.';
   }
   return 'Terjadi kesalahan';
 }

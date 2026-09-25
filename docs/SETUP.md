@@ -105,11 +105,12 @@ Setelah itu buka:
 
 ## 3. Membuka dari HP (WiFi yang Sama)
 
-1. Cari IP laptop: Windows `ipconfig` (IPv4 Address), macOS/Linux `ip addr` atau `ifconfig` (misal `192.168.1.10`).
-2. Ubah `apps/web/.env`: `VITE_API_URL=http://192.168.1.10:3000/api/v1`
-3. Ubah `apps/api/.env`: `CORS_ORIGIN=http://localhost:5173,http://192.168.1.10:5173`
-4. Jalankan ulang `pnpm dev`, lalu buka `http://192.168.1.10:5173` di Chrome HP.
-5. Bila tidak bisa dibuka, izinkan Node.js di firewall Windows (jaringan Private).
+Web meneruskan semua panggilan `/api` ke API lewat proxy Vite, jadi **tidak perlu mengubah `.env`**.
+
+1. Jalankan `pnpm dev` seperti biasa.
+2. Cari IP laptop: Windows `ipconfig` (lihat *IPv4 Address*, misal `192.168.1.10`); macOS/Linux `ip addr`.
+3. Di HP (WiFi yang sama), buka `http://192.168.1.10:5173` di Chrome.
+4. Bila tidak bisa dibuka, izinkan **Node.js** di Windows Firewall untuk jaringan *Private* (atau pastikan jaringan WiFi di laptop diset *Private*, bukan *Public*).
 
 ### Tes Printer Bluetooth & Install PWA (butuh HTTPS)
 
@@ -117,13 +118,10 @@ Web Bluetooth dan install PWA hanya jalan di **HTTPS** atau `localhost`. Cara te
 
 ```bash
 # install: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-cloudflared tunnel --url http://localhost:3000   # catat URL https API-nya
-cloudflared tunnel --url http://localhost:5173   # catat URL https web-nya
+cloudflared tunnel --url http://localhost:5173   # catat URL https yang muncul
 ```
 
-Isi `VITE_API_URL` dengan URL https API + `/api/v1`, dan tambahkan URL https web ke `CORS_ORIGIN` dan `PUBLIC_WEB_URL`. Setelah itu buka URL https web di Chrome Android, masuk ke **Admin → Lainnya → Printer → Hubungkan**, lalu **Tes Print**.
-
-Vite perlu mengizinkan host tunnel. Bila muncul "Blocked request", tambahkan `allowedHosts: ['.trycloudflare.com']` di bagian `server` pada `apps/web/vite.config.ts`.
+Cukup satu tunnel ke web (API ikut lewat proxy). Buka URL `https://....trycloudflare.com` di Chrome Android, masuk ke **Admin → Lainnya → Printer → Hubungkan**, lalu **Tes Print**. Host `.trycloudflare.com` sudah diizinkan di `vite.config.ts`.
 
 ## 4. Perintah Harian
 
@@ -150,7 +148,8 @@ Sebelum commit, Husky otomatis menjalankan lint + format pada file yang berubah.
 | `Can't reach database server at localhost:5432` | Docker Desktop belum jalan, atau jalankan `pnpm db:up` |
 | Port 5432 sudah dipakai | Ada PostgreSQL lain di laptop. Matikan, atau ubah port di `docker-compose.yml` (misal `5433:5432`) dan `DATABASE_URL` |
 | `Cannot find module '@bekuin/shared'` | Jalankan `pnpm --filter @bekuin/shared build` (otomatis di `pnpm dev`) |
+| Setelah `git pull` muncul error aneh / rute baru 404 | Hentikan `pnpm dev` (Ctrl+C), jalankan `pnpm install` dan `pnpm db:migrate`, lalu `pnpm dev` lagi |
 | `@prisma/client did not initialize` | Jalankan `pnpm --filter @bekuin/api prisma:generate` |
-| Login dari HP gagal "Tidak bisa terhubung ke server" | Cek `VITE_API_URL` memakai IP laptop, bukan `localhost`, dan `CORS_ORIGIN` sudah memuat alamat web |
+| "Tidak bisa terhubung ke server" / "Server API belum siap" | API butuh ±20 detik untuk start. Tunggu tulisan `API jalan di ...` di terminal, lalu coba lagi. Pastikan `VITE_API_URL=/api/v1` di `apps/web/.env` |
 | Tombol Hubungkan printer abu-abu | Bukan Chrome, atau bukan HTTPS/localhost |
 | Printer tidak muncul di daftar | Printer mati/terhubung ke HP lain, atau printer hanya Bluetooth Classic (bukan BLE). Coba aplikasi RawBT sebagai fallback |

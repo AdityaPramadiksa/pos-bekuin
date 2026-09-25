@@ -1,0 +1,158 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { ProductView } from '@bekuin/shared';
+import { rethrowPrismaError } from '../common/prisma-errors';
+import { PrismaService } from '../prisma/prisma.service';
+import type {
+  CreateProductDto,
+  CreateVariantDto,
+  UpdateProductDto,
+  UpdateVariantDto,
+} from './dto/menu.dto';
+
+const productInclude = {
+  variants: {
+    include: { category: true, _count: { select: { orderItems: true } } },
+    orderBy: [{ category: { sortOrder: 'asc' } }, { packSize: 'asc' }],
+  },
+} satisfies Prisma.ProductInclude;
+
+type ProductWithVariants = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
+
+function toView(p: ProductWithVariants): ProductView {
+  return {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    imageUrl: p.imageUrl,
+    stockPcs: p.stockPcs,
+    minStockPcs: p.minStockPcs,
+    isActive: p.isActive,
+    isAvailable: p.isAvailable,
+    sortOrder: p.sortOrder,
+    variants: p.variants.map((v) => ({
+      id: v.id,
+      productId: v.productId,
+      categoryId: v.categoryId,
+      categoryCode: v.category.code,
+      categoryName: v.category.name,
+      packSize: v.packSize,
+      price: v.price,
+      isActive: v.isActive,
+      sortOrder: v.sortOrder,
+      usedInOrders: v._count.orderItems > 0,
+    })),
+  };
+}
+
+const VARIANT_CONFLICT = 'Varian dengan kategori dan ukuran pack itu sudah ada';
+
+@Injectable()
+export class ProductsService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async list(includeInactive: boolean): Promise<ProductView[]> {
+    const products = await this.prisma.product.findMany({
+      where: includeInactive ? {} : { isActive: true },
+      include: productInclude,
+      orderBy: [{ isActive: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+    });
+    return products.map(toView);
+  }
+
+  async get(id: string): Promise<ProductView> {
+    const product = await this.prisma.product.findUnique({
+      where: { id },
+      include: productInclude,
+    });
+    if (!product) throw new NotFoundException('Produk tidak ditemukan');
+    return toView(product);
+  }
+
+  async create(dto: CreateProductDto): Promise<ProductView> {
+    try {
+      const product = await this.prisma.product.create({ data: dto, include: productInclude });
+      return toView(product);
+    } catch (error) {
+      rethrowPrismaError(error, 'Nama produk sudah dipakai');
+    }
+  }
+
+  /** Stok tidak bisa diubah di sini; stok hanya lewat StockService (Sprint 2). */
+  async update(id: string, dto: UpdateProductDto): Promise<ProductView> {
+    try {
+      const product = await this.prisma.product.update({
+        where: { id },
+        data: dto,
+        include: productInclude,
+      });
+      return toView(product);
+    } catch (error) {
+      rethrowPrismaError(error, 'Nama produk sudah dipakai');
+    }
+  }
+
+  async addVariant(productId: string, dto: CreateVariantDto): Promise<ProductView> {
+    await this.ensureCategory(dto.categoryId);
+    try {
+      await this.prisma.productVariant.create({ data: { ...dto, productId } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new NotFoundException('Produk tidak ditemukan');
+      }
+      rethrowPrismaError(error, VARIANT_CONFLICT);
+    }
+    return this.get(productId);
+  }
+
+  async updateVariant(
+    productId: string,
+    variantId: string,
+    dto: UpdateVariantDto,
+  ): Promise<ProductView> {
+    const variant = await this.findVariant(productId, variantId);
+    const changesIdentity =
+      (dto.categoryId !== undefined && dto.categoryId !== variant.categoryId) ||
+      (dto.packSize !== undefined && dto.packSize !== variant.packSize);
+    if (changesIdentity && variant._count.orderItems > 0) {
+      throw new BadRequestException(
+        'Kategori/ukuran pack varian yang sudah pernah dipesan tidak bisa diubah. Nonaktifkan lalu buat varian baru.',
+      );
+    }
+    if (dto.categoryId) await this.ensureCategory(dto.categoryId);
+    try {
+      await this.prisma.productVariant.update({ where: { id: variantId }, data: dto });
+    } catch (error) {
+      rethrowPrismaError(error, VARIANT_CONFLICT);
+    }
+    return this.get(productId);
+  }
+
+  /** Varian yang sudah dipakai order hanya dinonaktifkan; yang belum pernah dipakai dihapus. */
+  async removeVariant(productId: string, variantId: string): Promise<ProductView> {
+    const variant = await this.findVariant(productId, variantId);
+    if (variant._count.orderItems > 0) {
+      await this.prisma.productVariant.update({
+        where: { id: variantId },
+        data: { isActive: false },
+      });
+    } else {
+      await this.prisma.productVariant.delete({ where: { id: variantId } });
+    }
+    return this.get(productId);
+  }
+
+  private async findVariant(productId: string, variantId: string) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, productId },
+      include: { _count: { select: { orderItems: true } } },
+    });
+    if (!variant) throw new NotFoundException('Varian tidak ditemukan');
+    return variant;
+  }
+
+  private async ensureCategory(categoryId: string) {
+    const exists = await this.prisma.salesCategory.count({ where: { id: categoryId } });
+    if (!exists) throw new BadRequestException('Kategori tidak ditemukan');
+  }
+}

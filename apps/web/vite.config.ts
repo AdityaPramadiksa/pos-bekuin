@@ -4,6 +4,15 @@ import path from 'node:path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Saat development, web meneruskan /api, /uploads, dan /socket.io ke API NestJS.
+// Browser hanya bicara dengan satu alamat (tanpa CORS), jadi bisa dibuka dari HP lewat IP laptop.
+const API_TARGET = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:3000';
+const proxy = {
+  '/api': { target: API_TARGET, xfwd: true },
+  '/uploads': { target: API_TARGET },
+  '/socket.io': { target: API_TARGET, ws: true },
+};
+
 export default defineConfig({
   plugins: [
     react(),
@@ -29,7 +38,7 @@ export default defineConfig({
       },
       workbox: {
         // Cache shell aplikasi agar tetap terbuka offline; data API tidak di-cache.
-        navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/socket\.io/],
       },
     }),
   ],
@@ -39,6 +48,10 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true, // bisa diakses dari HP di jaringan WiFi yang sama
-    strictPort: true, // CORS_ORIGIN di API memakai port 5173
+    strictPort: true,
+    proxy,
+    // Izinkan alamat Cloudflare Tunnel untuk tes HTTPS (printer Bluetooth, install PWA).
+    allowedHosts: ['.trycloudflare.com'],
   },
+  preview: { port: 4173, host: true, proxy },
 });

@@ -4,6 +4,10 @@ import { AdminDashboardPage } from '@/features/admin/AdminDashboardPage';
 import { AdminMorePage } from '@/features/admin/AdminMorePage';
 import { AdminOrdersPage } from '@/features/admin/AdminOrdersPage';
 import { AdminStockPage } from '@/features/admin/AdminStockPage';
+import { MenuPage } from '@/features/admin/menu/MenuPage';
+import { PaymentMethodsPage } from '@/features/admin/settings/PaymentMethodsPage';
+import { SettingsPage } from '@/features/admin/settings/SettingsPage';
+import { UsersPage } from '@/features/admin/users/UsersPage';
 import { AccountPage } from '@/features/auth/AccountPage';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -54,6 +58,10 @@ export const router = createBrowserRouter([
               { path: 'order', element: <AdminOrdersPage /> },
               { path: 'stok', element: <AdminStockPage /> },
               { path: 'lainnya', element: <AdminMorePage /> },
+              { path: 'lainnya/menu', element: <MenuPage /> },
+              { path: 'lainnya/pengguna', element: <UsersPage /> },
+              { path: 'lainnya/pengaturan', element: <SettingsPage /> },
+              { path: 'lainnya/metode-bayar', element: <PaymentMethodsPage /> },
               { path: 'lainnya/printer', element: <PrinterPage /> },
               { path: 'lainnya/akun', element: <AccountPage /> },
             ],

@@ -1,5 +1,17 @@
-import { ChevronRight, type LucideIcon, Printer, UserRound } from 'lucide-react';
-import { BookOpen, Cog, QrCode, ReceiptText, Users, UtensilsCrossed, Wallet } from 'lucide-react';
+import {
+  BookOpen,
+  ChevronRight,
+  Cog,
+  CreditCard,
+  type LucideIcon,
+  Printer,
+  QrCode,
+  ReceiptText,
+  UserRound,
+  Users,
+  UtensilsCrossed,
+  Wallet,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 
@@ -19,7 +31,13 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         label: 'Menu & Harga',
         description: 'Kategori, produk, varian, foto, tandai habis',
         icon: UtensilsCrossed,
-        sprint: 'Sprint 1',
+        to: '/admin/lainnya/menu',
+      },
+      {
+        label: 'Metode Bayar',
+        description: 'Cash, Transfer, QRIS, e-wallet',
+        icon: CreditCard,
+        to: '/admin/lainnya/metode-bayar',
       },
       {
         label: 'Meja & QR',
@@ -61,12 +79,17 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
   {
     title: 'Sistem',
     items: [
-      { label: 'Pengguna', description: 'Akun staff dan admin', icon: Users, sprint: 'Sprint 1' },
+      {
+        label: 'Pengguna',
+        description: 'Akun staff dan admin',
+        icon: Users,
+        to: '/admin/lainnya/pengguna',
+      },
       {
         label: 'Pengaturan Toko',
-        description: 'Info toko, struk, QRIS, jam buka',
+        description: 'Info toko, struk, QRIS, jam buka, self-order',
         icon: Cog,
-        sprint: 'Sprint 1',
+        to: '/admin/lainnya/pengaturan',
       },
       {
         label: 'Printer',

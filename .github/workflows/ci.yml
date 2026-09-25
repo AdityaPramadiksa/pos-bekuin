@@ -40,4 +40,5 @@ jobs:
         run: |
           pnpm --filter @bekuin/api prisma:deploy
           pnpm --filter @bekuin/api prisma:seed
+      - run: pnpm --filter @bekuin/api test:e2e
       - run: pnpm build

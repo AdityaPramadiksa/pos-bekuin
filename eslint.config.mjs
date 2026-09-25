@@ -18,11 +18,17 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Awalan "_" = sengaja tidak dipakai (misal membuang properti saat destructuring).
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
+    },
+  },
+  {
     files: ['apps/api/**/*.ts'],
     languageOptions: { globals: { ...globals.node, ...globals.jest } },
-    rules: {
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-    },
   },
   {
     files: ['apps/web/**/*.{ts,tsx}'],

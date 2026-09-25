@@ -644,15 +644,15 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Auth | `POST /auth/login` | Publik | Rate limit 5x/menit ✅ |
 | Auth | `POST /auth/refresh`, `POST /auth/logout` | Publik (bawa refresh token) | Rotasi dan cabut refresh token ✅ |
 | Auth | `GET /auth/me`, `PATCH /auth/password` | Login | Profil dan ganti password ✅ |
-| Users | `GET/POST/PATCH/DELETE /users` | Admin | CRUD user, reset password |
-| Settings | `GET/PATCH /settings` | Admin | Info toko, struk, QRIS, jam buka, self-order |
-| Uploads | `POST /uploads` | Login | Foto menu, nota (validasi tipe & ukuran) |
+| Users | `GET/POST/PATCH /users`, `POST /users/:id/reset-password` | Admin | CRUD user (nonaktif = soft delete), reset password ✅ |
+| Settings | `GET /settings` (login), `PATCH /settings` (admin) | Login / Admin | Info toko, struk, QRIS, jam buka, self-order ✅ |
+| Uploads | `POST /uploads?purpose=menu\|logo\|qris\|receipt` | Admin | Gambar (validasi isi file & ukuran) ✅ |
 | Tables | `GET/POST/PATCH/DELETE /tables`, `POST /tables/:id/rotate-qr`, `GET /tables/:id/qr.png`, `GET /tables/qr-sheet` | Admin | Meja & QR |
-| Menu | `GET/POST/PATCH /sales-categories` | Admin | Kategori + tampil ke pelanggan |
-| Menu | `GET/POST/PATCH/DELETE /products`, `PATCH /products/:id/availability` | Admin | Produk, foto, toggle habis |
-| Menu | `POST/PATCH/DELETE /products/:id/variants` | Admin | Varian + kemasan, balikan HPP & margin |
-| Payment | `GET/POST/PATCH /payment-methods` | Admin | Metode bayar |
-| Katalog | `GET /catalog` | Login | Menu aktif + varian + stok tersedia (layar POS) |
+| Menu | `GET/POST/PATCH /sales-categories` | Login (baca) / Admin | Kategori + tampil ke pelanggan ✅ |
+| Menu | `GET/POST/PATCH/DELETE /products`, `PATCH /products/:id/availability` | Admin | Produk, foto, toggle habis (DELETE = nonaktifkan) ✅ |
+| Menu | `POST /products/:id/variants`, `PATCH/DELETE /products/:id/variants/:variantId` | Admin | Varian (kemasan, HPP & margin di Sprint 4) ✅ |
+| Payment | `GET/POST/PATCH /payment-methods` | Login (baca) / Admin | Metode bayar ✅ |
+| Katalog | `GET /catalog` | Login | Menu aktif + varian + stok tersedia (layar POS) ✅ |
 | **Publik** | `GET /public/tables/:qrToken/menu` | Publik | Info toko, meja, status buka, menu pelanggan, metode bayar |
 | **Publik** | `POST /public/orders` | Publik (rate limit) | Body: `qrToken`, items, nama, WA, tipe, catatan, metode. Balikan `orderNo`, `publicToken` |
 | **Publik** | `GET /public/orders/:publicToken` | Publik | Status + item + total + QRIS |
@@ -681,7 +681,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Reports | `GET /reports/sales`, `/profit-loss`, `/product-profit`, `/cashflow`, `/top-products`, `/stock-movements`, `/daily-closing`, `/qr-service` | Admin | Query `from`, `to`, `groupBy` |
 | Reports | `GET /reports/:type/export?format=csv|xlsx` | Admin | Export |
 
-✅ = sudah diimplementasikan di Sprint 0.
+✅ = sudah diimplementasikan (Sprint 0–1).
 
 **Event Socket.IO**
 
@@ -697,7 +697,7 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | Sprint | Fokus | Hasil akhir |
 | --- | --- | --- |
 | 0 | Setup & fondasi | Monorepo, DB, skema lengkap, seeder, auth, layout, spike printer ✅ |
-| 1 | Pengguna, Menu, Pengaturan | CRUD user, CRUD menu (kategori/produk/varian/foto/habis), metode bayar, pengaturan toko |
+| 1 | Pengguna, Menu, Pengaturan | CRUD user, CRUD menu (kategori/produk/varian/foto/habis), metode bayar, pengaturan toko ✅ |
 | 2 | POS & Approval | Staff input order → admin approve + bayar → struk tercetak, stok produk terpotong (**bisa jualan**) |
 | 3 | Self-Order QR & Dapur | Meja & QR, menu pelanggan, checkout QRIS, lacak pesanan, antrian dapur |
 | 4 | Bahan, Resep, HPP | HPP & margin otomatis, kemasan per varian, snapshot HPP saat approve |
@@ -721,18 +721,21 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 - [x] Spike Web Bluetooth: builder ESC/POS + halaman Printer (hubungkan, tes print "Halo Bekuin")
 - [x] GitHub Actions CI: lint, format, typecheck, test, migrasi + seed, build
 - [ ] **Uji printer nyata** Axelpos/Iware C58BT dari Chrome Android (HTTPS): printer muncul di daftar? tes print keluar rapi 32 kolom?
-- [ ] Inisialisasi shadcn/ui komponen dasar (`button`, `input`, `dialog`, `sheet`, `table`, `badge`, `tabs`)
+- [x] Komponen UI dasar (`Button`, `Input`, `MoneyInput`, `Select`, `Dialog`/bottom sheet, `Switch`, `Badge`, state loading/kosong/error) di `apps/web/src/components/ui`, gaya shadcn tanpa CLI
 
-### Sprint 1: Pengguna, Menu, Pengaturan
+### Sprint 1: Pengguna, Menu, Pengaturan ✅
 
-- [ ] UsersModule: list, tambah, edit, nonaktifkan, reset password (paksa ganti saat login)
-- [ ] SettingsModule: `GET/PATCH /settings`, unggah logo & gambar QRIS
-- [ ] UploadsModule: simpan ke disk (dev), validasi tipe/ukuran, sajikan statis; antarmuka storage agar mudah ganti ke R2/Supabase
-- [ ] MenuModule: sales-categories, products (foto, deskripsi, urutan, habis), variants (unik produk+kategori+pack)
-- [ ] PaymentMethodsModule: CRUD, `showToCustomer`
-- [ ] `GET /catalog` untuk POS (produk aktif + varian per kategori + stok)
-- [ ] FE: komponen dasar shadcn, halaman Pengguna, Menu & Harga (list, form, unggah foto dengan kompres WebP), Metode Bayar, Pengaturan Toko
-- [ ] Test e2e (Supertest): staff ditolak di endpoint admin; CRUD menu
+- [x] UsersModule: list, tambah, edit, nonaktifkan, reset password (paksa ganti saat login); tidak bisa menonaktifkan diri sendiri / admin aktif terakhir; sesi dicabut saat nonaktif/reset
+- [x] SettingsModule: `GET/PATCH /settings` (validasi jam buka), unggah logo & gambar QRIS
+- [x] UploadsModule: disk lokal (dev) disajikan di `/uploads`, validasi isi file (magic bytes JPG/PNG/WebP) + maks 5 MB; antarmuka `FileStorage` agar mudah ganti ke R2/Supabase
+- [x] MenuModule: sales-categories, products (foto, deskripsi, urutan, habis, soft delete), variants (unik produk+kategori+pack; varian yang pernah dipesan hanya bisa dinonaktifkan)
+- [x] PaymentMethodsModule: CRUD, `showToCustomer`
+- [x] `GET /catalog` untuk POS (produk aktif + varian per kategori + stok tersedia = stok − order PENDING)
+- [x] Util jam buka WITA di `packages/shared` (`isWithinOpeningHours`, termasuk jam lewat tengah malam) + unit test
+- [x] FE: halaman Menu & Harga (cari, filter Aktif/Habis/Nonaktif, toggle habis, dialog produk + editor varian, dialog kategori), Pengguna, Metode Bayar, Pengaturan Toko (jam buka per hari, QRIS, self-order)
+- [x] FE: unggah foto dengan kompres WebP ≤ 200 KB di browser (QRIS tidak dikompres agar tetap tajam)
+- [x] Proxy dev Vite (`/api`, `/uploads`, `/socket.io`) → tanpa CORS, bisa dibuka dari HP lewat IP laptop
+- [x] Test e2e (Supertest, DB asli): staff ditolak di endpoint admin; CRUD menu; upload; pengaturan; pengguna — 12 test, juga jalan di CI
 
 ### Sprint 2: POS & Approval (bisa jualan)
 

@@ -17,7 +17,8 @@
     "prisma:seed": "prisma db seed",
     "prisma:reset": "prisma migrate reset --force",
     "prisma:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:e2e": "jest --config test/jest-e2e.json --runInBand"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -49,6 +50,7 @@
     "@nestjs/testing": "^11.1.6",
     "@types/express": "^5.0.3",
     "@types/jest": "^30.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.18.0",
     "@types/supertest": "^6.0.3",
     "jest": "^30.2.0",
