@@ -1,0 +1,34 @@
+# Database untuk development lokal.
+# Jalankan: pnpm db:up   (atau: docker compose up -d db)
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: bekuin-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bekuin
+      POSTGRES_PASSWORD: bekuin
+      POSTGRES_DB: bekuin_pos
+      TZ: UTC
+    ports:
+      - '5432:5432'
+    volumes:
+      - bekuin-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U bekuin -d bekuin_pos']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # UI database opsional di http://localhost:8080 (server: db, user/pass: bekuin)
+  adminer:
+    image: adminer:latest
+    container_name: bekuin-adminer
+    profiles: ['tools']
+    ports:
+      - '8080:8080'
+    depends_on:
+      - db
+
+volumes:
+  bekuin-db-data:

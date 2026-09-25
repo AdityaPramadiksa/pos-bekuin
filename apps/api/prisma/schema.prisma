@@ -1,0 +1,640 @@
+// Skema database Bekuin POS (PRD v2.0 bagian 6).
+// Aturan uang: harga jual & total = Int rupiah; biaya per gram/ml/pcs = Decimal(14,4).
+// Aturan stok: kolom stok HANYA diubah lewat StockService (lihat .claude/skills/bekuin-stok).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Enum ───────────────────────────────
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum IngredientType {
+  RAW
+  SEMI_FINISHED
+  PACKAGING
+}
+
+enum BaseUnit {
+  GRAM
+  ML
+  PCS
+}
+
+enum RecipeType {
+  SEMI_FINISHED
+  PRODUCT
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  REJECTED
+  CANCELLED
+  VOIDED
+}
+
+enum OrderSource {
+  POS
+  ADMIN
+  QR_TABLE
+  WA_IMPORT
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+  PREORDER
+}
+
+enum FulfillmentStatus {
+  QUEUED
+  PREPARING
+  READY
+  HANDED_OVER
+}
+
+enum PaymentType {
+  CASH
+  TRANSFER
+  QRIS
+  EWALLET
+}
+
+enum QrPaymentMode {
+  QRIS_ONLY
+  QRIS_OR_CASHIER
+}
+
+enum StockItemType {
+  INGREDIENT
+  PRODUCT
+}
+
+enum MovementType {
+  PURCHASE
+  PRODUCTION_IN
+  PRODUCTION_OUT
+  SALE
+  VOID_RETURN
+  OPNAME_ADJUST
+  MANUAL_ADJUST
+  WASTE
+}
+
+enum OpnameStatus {
+  DRAFT
+  FINALIZED
+}
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+// ─────────────────────────────── Auth ───────────────────────────────
+
+model User {
+  id                 String    @id @default(cuid())
+  name               String
+  username           String    @unique
+  passwordHash       String
+  role               Role      @default(STAFF)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  refreshTokens     RefreshToken[]
+  ordersMade        Order[]          @relation("OrderCreator")
+  ordersApproved    Order[]          @relation("OrderApprover")
+  orderLogs         OrderLog[]
+  batches           OrderBatch[]
+  stockMovements    StockMovement[]
+  purchases         Purchase[]
+  productions       Production[]
+  opnamesCreated    StockOpname[]    @relation("OpnameCreator")
+  opnamesFinalized  StockOpname[]    @relation("OpnameFinalizer")
+  expenses          Expense[]
+  cashSessionsOpen  CashSession[]    @relation("CashSessionOpener")
+  cashSessionsClose CashSession[]    @relation("CashSessionCloser")
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  userAgent String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────── Toko ───────────────────────────────
+
+/// Satu baris saja (id = "default").
+model Setting {
+  id                     String        @id @default("default")
+  storeName              String        @default("Bekuin")
+  tagline                String?       @default("Frozen Food - Siap Makan")
+  address                String?
+  phone                  String?
+  receiptFooter          String?       @default("Terima kasih sudah order!")
+  qrisImageUrl           String?
+  logoUrl                String?
+  isStoreOpen            Boolean       @default(true)
+  /// { "mon": ["09:00","21:00"], ... } — kosong = selalu buka selama isStoreOpen
+  openingHours           Json?
+  qrOrderingEnabled      Boolean       @default(true)
+  qrPaymentMode          QrPaymentMode @default(QRIS_ONLY)
+  qrMaxOrderTotal        Int           @default(1000000)
+  blockApproveOnLowStock Boolean       @default(true)
+  paperWidthChars        Int           @default(32)
+  updatedAt              DateTime      @updatedAt
+
+  @@map("settings")
+}
+
+/// Meja untuk self-order QR. qrToken acak dan bisa diganti (rotate) bila bocor.
+model DiningTable {
+  id        String   @id @default(cuid())
+  code      String   @unique // "M01", "TAKEAWAY"
+  name      String // "Meja 1"
+  qrToken   String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  orders    Order[]
+
+  @@map("dining_tables")
+}
+
+model PaymentMethod {
+  id             String      @id @default(cuid())
+  name           String      @unique // Cash, Transfer BCA, QRIS
+  type           PaymentType
+  accountInfo    String? // no rekening / atas nama
+  isActive       Boolean     @default(true)
+  showToCustomer Boolean     @default(false) // tampil di checkout QR
+  sortOrder      Int         @default(0)
+  orders         Order[]
+  expenses       Expense[]
+
+  @@map("payment_methods")
+}
+
+// ─────────────────────────── Master & Menu ───────────────────────────
+
+model Ingredient {
+  id             String         @id @default(cuid())
+  name           String         @unique
+  type           IngredientType
+  baseUnit       BaseUnit
+  purchaseUnit   String? // "pack 2kg", "karung"
+  purchaseQty    Decimal        @default(1) @db.Decimal(14, 4) // isi per kemasan beli (satuan dasar)
+  lastPrice      Int            @default(0) // harga per kemasan beli
+  avgCostPerUnit Decimal        @default(0) @db.Decimal(14, 4)
+  stockQty       Decimal        @default(0) @db.Decimal(14, 4)
+  minStock       Decimal        @default(0) @db.Decimal(14, 4)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  producedBy      Recipe?            @relation("RecipeOutput")
+  usedIn          RecipeLine[]
+  packagingOf     VariantPackaging[]
+  purchaseItems   PurchaseItem[]
+  productionLines ProductionLine[]
+  productions     Production[]       @relation("ProductionOutputIngredient")
+  movements       StockMovement[]
+  opnameItems     StockOpnameItem[]
+
+  @@map("ingredients")
+}
+
+model SalesCategory {
+  id                String           @id @default(cuid())
+  code              String           @unique // FROZEN, SIAP_MAKAN
+  name              String
+  isCustomerVisible Boolean          @default(true) // tampil di menu QR pelanggan
+  isActive          Boolean          @default(true)
+  sortOrder         Int              @default(0)
+  variants          ProductVariant[]
+
+  @@map("sales_categories")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  description   String?
+  imageUrl      String?
+  stockPcs      Int      @default(0)
+  minStockPcs   Int      @default(0)
+  avgCostPerPcs Decimal  @default(0) @db.Decimal(14, 4)
+  isActive      Boolean  @default(true) // soft delete
+  isAvailable   Boolean  @default(true) // toggle "Habis" cepat tanpa hapus
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  recipe      Recipe?
+  variants    ProductVariant[]
+  aliases     ProductAlias[]
+  productions Production[]
+  movements   StockMovement[]
+  opnameItems StockOpnameItem[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String             @id @default(cuid())
+  productId  String
+  categoryId String
+  packSize   Int
+  price      Int
+  isActive   Boolean            @default(true)
+  sortOrder  Int                @default(0)
+  product    Product            @relation(fields: [productId], references: [id])
+  category   SalesCategory      @relation(fields: [categoryId], references: [id])
+  packaging  VariantPackaging[]
+  orderItems OrderItem[]
+
+  @@unique([productId, categoryId, packSize])
+  @@map("product_variants")
+}
+
+model VariantPackaging {
+  variantId    String
+  ingredientId String
+  qty          Decimal        @db.Decimal(14, 4)
+  variant      ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient     @relation(fields: [ingredientId], references: [id])
+
+  @@id([variantId, ingredientId])
+  @@map("variant_packaging")
+}
+
+model ProductAlias {
+  id        String  @id @default(cuid())
+  productId String
+  alias     String  @unique // huruf kecil, contoh "dimsam ori"
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_aliases")
+}
+
+model Recipe {
+  id                 String       @id @default(cuid())
+  name               String
+  type               RecipeType
+  yieldQty           Decimal      @db.Decimal(14, 4) // 1200 (g) / 50 (pcs) / 1 (pcs produk)
+  outputIngredientId String?      @unique // untuk SEMI_FINISHED
+  productId          String?      @unique // untuk PRODUCT
+  note               String?
+  isActive           Boolean      @default(true)
+  outputIngredient   Ingredient?  @relation("RecipeOutput", fields: [outputIngredientId], references: [id])
+  product            Product?     @relation(fields: [productId], references: [id])
+  lines              RecipeLine[]
+  productions        Production[]
+
+  @@map("recipes")
+}
+
+model RecipeLine {
+  id           String     @id @default(cuid())
+  recipeId     String
+  ingredientId String
+  qty          Decimal    @db.Decimal(14, 4)
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@unique([recipeId, ingredientId])
+  @@map("recipe_lines")
+}
+
+model Customer {
+  id             String   @id @default(cuid())
+  name           String
+  nameNormalized String // huruf kecil, spasi dirapikan
+  phone          String?
+  note           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  orders         Order[]
+
+  @@index([nameNormalized])
+  @@index([phone])
+  @@map("customers")
+}
+
+// ─────────────────────────────── Order ───────────────────────────────
+
+model OrderBatch {
+  id           String   @id @default(cuid())
+  deliveryDate DateTime @db.Date
+  rawText      String   @db.Text
+  createdById  String
+  createdAt    DateTime @default(now())
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  orders       Order[]
+
+  @@map("order_batches")
+}
+
+/// Penghitung nomor order harian (BK-YYYYMMDD-0001). key = "order:20260921".
+model DailyCounter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("daily_counters")
+}
+
+model Order {
+  id                String            @id @default(cuid())
+  orderNo           String            @unique
+  /// Token acak untuk halaman lacak pesanan pelanggan (/o/:publicToken).
+  publicToken       String            @unique @default(cuid())
+  status            OrderStatus       @default(PENDING)
+  source            OrderSource       @default(POS)
+  type              OrderType         @default(TAKEAWAY)
+  fulfillmentStatus FulfillmentStatus @default(QUEUED)
+
+  customerId    String?
+  customerName  String? // snapshot
+  customerPhone String?
+  tableId       String?
+  deliveryDate  DateTime @default(now()) @db.Date
+  batchId       String?
+  note          String?
+
+  subtotal        Int
+  discount        Int     @default(0)
+  total           Int
+  hppTotal        Int     @default(0)
+  paymentMethodId String?
+  paidAmount      Int?
+  changeAmount    Int?
+  paymentRef      String?
+  /// Bukti bayar yang diunggah pelanggan QR (screenshot QRIS/transfer).
+  paymentProofUrl String?
+  reason          String? // alasan reject / void / batal
+
+  createdById   String? // null = dibuat pelanggan lewat QR
+  approvedById  String?
+  approvedAt    DateTime?
+  cashSessionId String?
+  preparingAt   DateTime?
+  readyAt       DateTime?
+  handedOverAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy     User?          @relation("OrderCreator", fields: [createdById], references: [id])
+  approvedBy    User?          @relation("OrderApprover", fields: [approvedById], references: [id])
+  customer      Customer?      @relation(fields: [customerId], references: [id])
+  table         DiningTable?   @relation(fields: [tableId], references: [id])
+  batch         OrderBatch?    @relation(fields: [batchId], references: [id])
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  cashSession   CashSession?   @relation(fields: [cashSessionId], references: [id])
+  items         OrderItem[]
+  logs          OrderLog[]
+
+  @@index([status, createdAt])
+  @@index([deliveryDate, status])
+  @@index([source, status])
+  @@index([createdById, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           String         @id @default(cuid())
+  orderId      String
+  variantId    String
+  productName  String // snapshot
+  categoryCode String // snapshot
+  packSize     Int // snapshot
+  price        Int // snapshot
+  qty          Int
+  hppPerPack   Int            @default(0) // diisi saat approve
+  subtotal     Int
+  note         String?
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variant      ProductVariant @relation(fields: [variantId], references: [id])
+
+  @@map("order_items")
+}
+
+model OrderLog {
+  id         String       @id @default(cuid())
+  orderId    String
+  action     String // CREATED, EDITED, APPROVED, REJECTED, CANCELLED, VOIDED, FULFILLMENT
+  fromStatus OrderStatus?
+  toStatus   OrderStatus?
+  reason     String?
+  userId     String? // null = aksi pelanggan QR
+  createdAt  DateTime     @default(now())
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user       User?        @relation(fields: [userId], references: [id])
+
+  @@index([orderId, createdAt])
+  @@map("order_logs")
+}
+
+// ─────────────────────────────── Stok ───────────────────────────────
+
+/// Buku besar semua mutasi stok. Tidak pernah di-update/dihapus.
+model StockMovement {
+  id           String        @id @default(cuid())
+  itemType     StockItemType
+  ingredientId String?
+  productId    String?
+  type         MovementType
+  qtyChange    Decimal       @db.Decimal(14, 4) // + masuk, - keluar
+  balanceAfter Decimal       @db.Decimal(14, 4)
+  unitCost     Decimal       @default(0) @db.Decimal(14, 4)
+  refType      String? // ORDER, PURCHASE, PRODUCTION, OPNAME, ADJUST
+  refId        String?
+  note         String?
+  userId       String
+  createdAt    DateTime      @default(now())
+  ingredient   Ingredient?   @relation(fields: [ingredientId], references: [id])
+  product      Product?      @relation(fields: [productId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+
+  @@index([ingredientId, createdAt])
+  @@index([productId, createdAt])
+  @@index([refType, refId])
+  @@map("stock_movements")
+}
+
+model Purchase {
+  id          String         @id @default(cuid())
+  date        DateTime       @db.Date
+  supplier    String?
+  note        String?
+  total       Int
+  photoUrl    String?
+  createdById String
+  createdAt   DateTime       @default(now())
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  items       PurchaseItem[]
+
+  @@index([date])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id           String     @id @default(cuid())
+  purchaseId   String
+  ingredientId String
+  packQty      Decimal    @db.Decimal(14, 4) // jumlah kemasan beli
+  qtyBase      Decimal    @db.Decimal(14, 4) // hasil konversi ke satuan dasar
+  totalPrice   Int
+  unitCost     Decimal    @db.Decimal(14, 4)
+  purchase     Purchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@map("purchase_items")
+}
+
+model Production {
+  id                 String           @id @default(cuid())
+  type               RecipeType
+  recipeId           String
+  productId          String? // untuk PRODUCT
+  outputIngredientId String? // untuk SEMI_FINISHED
+  batchQty           Decimal          @db.Decimal(14, 4) // jumlah batch / pcs
+  expectedOutput     Decimal          @db.Decimal(14, 4)
+  actualOutput       Decimal          @db.Decimal(14, 4)
+  yieldVariance      Decimal          @default(0) @db.Decimal(14, 4)
+  totalCost          Decimal          @db.Decimal(14, 4)
+  note               String?
+  createdById        String
+  createdAt          DateTime         @default(now())
+  recipe             Recipe           @relation(fields: [recipeId], references: [id])
+  product            Product?         @relation(fields: [productId], references: [id])
+  outputIngredient   Ingredient?      @relation("ProductionOutputIngredient", fields: [outputIngredientId], references: [id])
+  createdBy          User             @relation(fields: [createdById], references: [id])
+  lines              ProductionLine[]
+
+  @@index([createdAt])
+  @@map("productions")
+}
+
+model ProductionLine {
+  id           String     @id @default(cuid())
+  productionId String
+  ingredientId String
+  qtyUsed      Decimal    @db.Decimal(14, 4)
+  unitCost     Decimal    @db.Decimal(14, 4)
+  production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id])
+
+  @@map("production_lines")
+}
+
+model StockOpname {
+  id            String            @id @default(cuid())
+  status        OpnameStatus      @default(DRAFT)
+  note          String?
+  createdById   String
+  finalizedById String?
+  createdAt     DateTime          @default(now())
+  finalizedAt   DateTime?
+  createdBy     User              @relation("OpnameCreator", fields: [createdById], references: [id])
+  finalizedBy   User?             @relation("OpnameFinalizer", fields: [finalizedById], references: [id])
+  items         StockOpnameItem[]
+
+  @@map("stock_opnames")
+}
+
+model StockOpnameItem {
+  id           String        @id @default(cuid())
+  opnameId     String
+  itemType     StockItemType
+  ingredientId String?
+  productId    String?
+  systemQty    Decimal       @db.Decimal(14, 4)
+  physicalQty  Decimal?      @db.Decimal(14, 4)
+  diffQty      Decimal       @default(0) @db.Decimal(14, 4)
+  unitCost     Decimal       @default(0) @db.Decimal(14, 4)
+  diffValue    Int           @default(0)
+  opname       StockOpname   @relation(fields: [opnameId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient?   @relation(fields: [ingredientId], references: [id])
+  product      Product?      @relation(fields: [productId], references: [id])
+
+  @@map("stock_opname_items")
+}
+
+// ───────────────────────────── Keuangan ─────────────────────────────
+
+model ExpenseCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique // Sewa, Listrik & Air, Gaji, Gas, Transport, Lain-lain
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  expenses  Expense[]
+
+  @@map("expense_categories")
+}
+
+/// Biaya operasional di luar belanja bahan (belanja bahan masuk lewat Purchase → HPP).
+model Expense {
+  id              String          @id @default(cuid())
+  date            DateTime        @db.Date
+  categoryId      String
+  amount          Int
+  paymentMethodId String?
+  note            String?
+  photoUrl        String?
+  cashSessionId   String?
+  createdById     String
+  createdAt       DateTime        @default(now())
+  category        ExpenseCategory @relation(fields: [categoryId], references: [id])
+  paymentMethod   PaymentMethod?  @relation(fields: [paymentMethodId], references: [id])
+  cashSession     CashSession?    @relation(fields: [cashSessionId], references: [id])
+  createdBy       User            @relation(fields: [createdById], references: [id])
+
+  @@index([date])
+  @@map("expenses")
+}
+
+/// Shift kasir: modal awal laci, hitung uang fisik saat tutup, selisih.
+model CashSession {
+  id           String            @id @default(cuid())
+  status       CashSessionStatus @default(OPEN)
+  openedById   String
+  openedAt     DateTime          @default(now())
+  openingCash  Int
+  closedById   String?
+  closedAt     DateTime?
+  expectedCash Int?
+  countedCash  Int?
+  difference   Int?
+  note         String?
+  openedBy     User              @relation("CashSessionOpener", fields: [openedById], references: [id])
+  closedBy     User?             @relation("CashSessionCloser", fields: [closedById], references: [id])
+  orders       Order[]
+  expenses     Expense[]
+
+  @@index([status])
+  @@map("cash_sessions")
+}

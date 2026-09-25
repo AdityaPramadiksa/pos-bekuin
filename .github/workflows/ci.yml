@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: bekuin
+          POSTGRES_PASSWORD: bekuin
+          POSTGRES_DB: bekuin_pos
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U bekuin -d bekuin_pos"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://bekuin:bekuin@localhost:5432/bekuin_pos?schema=public
+      JWT_ACCESS_SECRET: ci-access-secret-yang-panjangnya-minimal-32
+      JWT_REFRESH_SECRET: ci-refresh-secret-yang-panjangnya-minimal-32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @bekuin/shared build
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Migrasi + seed database
+        run: |
+          pnpm --filter @bekuin/api prisma:deploy
+          pnpm --filter @bekuin/api prisma:seed
+      - run: pnpm build
