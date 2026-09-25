@@ -116,7 +116,9 @@ export function PaymentPanel({
       )}
 
       <p className="text-xs text-stone-500">
-        Setelah pembayaran masuk, kasir mengonfirmasi dan status di halaman ini berubah otomatis.
+        {p.type === 'QRIS'
+          ? 'Bayar sesuai nominal (termasuk kode unik) supaya pesanan langsung diproses otomatis begitu uang masuk. Status di halaman ini berubah sendiri.'
+          : 'Setelah pembayaran masuk, kasir mengonfirmasi dan status di halaman ini berubah otomatis.'}
       </p>
 
       {o.canUploadProof && <ProofUpload order={o} uploading={uploading} onUpload={onUpload} />}

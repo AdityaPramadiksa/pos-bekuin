@@ -99,7 +99,11 @@ export function receiptLines(
     bold: true,
     big: true,
   });
-  if (order.paymentMethod) {
+  if (order.paymentMethod && order.status === 'PAID' && !order.paidAt) {
+    // Disetujui tapi uang belum diterima (COD / bayar saat ambil).
+    lines.push({ kind: 'pair', left: order.paymentMethod.name, right: 'BELUM DIBAYAR' });
+    lines.push({ kind: 'text', text: '*** BELUM DIBAYAR ***', align: 'center', bold: true });
+  } else if (order.paymentMethod) {
     lines.push({
       kind: 'pair',
       left: order.paymentMethod.name,

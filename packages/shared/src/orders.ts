@@ -69,9 +69,10 @@ export interface OrderView {
   createdBy: { id: string; name: string } | null;
   approvedBy: { id: string; name: string } | null;
   approvedAt: string | null;
-  preparingAt: string | null;
-  readyAt: string | null;
-  handedOverAt: string | null;
+  /** Waktu uang diterima; null pada order disetujui = belum dibayar (COD / bayar saat ambil). */
+  paidAt: string | null;
+  /** Waktu ditandai Selesai / Dikirim / Siap diambil. */
+  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
   items: OrderItemView[];
@@ -121,10 +122,8 @@ export const STOCK_UNIT_LABEL: Record<'GRAM' | 'ML' | 'PCS', string> = {
   PCS: 'pcs',
 };
 
-export const FULFILLMENT_FLOW = ['QUEUED', 'PREPARING', 'READY', 'HANDED_OVER'] as const;
-
-/** Langkah berikutnya di antrian dapur (null = sudah selesai). */
-export function nextFulfillment(status: (typeof FULFILLMENT_FLOW)[number]) {
-  const i = FULFILLMENT_FLOW.indexOf(status);
-  return i >= 0 && i < FULFILLMENT_FLOW.length - 1 ? FULFILLMENT_FLOW[i + 1] : null;
+/** Halaman Diproses: order yang harus disiapkan + yang sudah selesai hari ini. */
+export interface ProcessingView {
+  processing: OrderView[];
+  done: OrderView[];
 }

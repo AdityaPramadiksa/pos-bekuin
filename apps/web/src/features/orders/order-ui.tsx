@@ -1,36 +1,43 @@
 import {
   DELIVERY_METHOD_LABEL,
-  FULFILLMENT_STATUS_LABEL,
-  type FulfillmentStatus,
-  ORDER_STATUS_LABEL,
-  type OrderStatus,
+  isUnpaid,
+  ORDER_STAGE_LABEL,
+  type OrderStage,
+  orderStage,
   type OrderView,
   SOURCE_LABEL,
 } from '@bekuin/shared';
 import { Badge } from '@/components/ui/badge';
 
-const STATUS_TONE: Record<OrderStatus, 'amber' | 'green' | 'red' | 'neutral'> = {
+const STAGE_TONE: Record<OrderStage, 'amber' | 'green' | 'red' | 'neutral' | 'blue' | 'brand'> = {
   PENDING: 'amber',
-  PAID: 'green',
+  PROCESSING: 'blue',
+  SHIPPED: 'green',
+  READY_PICKUP: 'green',
+  DONE: 'green',
   REJECTED: 'red',
   CANCELLED: 'neutral',
   VOIDED: 'red',
 };
 
-export function StatusBadge({ status }: { status: OrderStatus }) {
-  return <Badge tone={STATUS_TONE[status]}>{ORDER_STATUS_LABEL[status]}</Badge>;
+type StageOrder = Pick<
+  OrderView,
+  'status' | 'fulfillmentStatus' | 'source' | 'deliveryMethod' | 'paidAt'
+>;
+
+/** Menunggu persetujuan → Diproses → Dikirim / Siap diambil / Selesai (+ Belum dibayar). */
+export function StatusBadge({ order }: { order: StageOrder }) {
+  const stage = orderStage(order);
+  return (
+    <>
+      <Badge tone={STAGE_TONE[stage]}>{ORDER_STAGE_LABEL[stage]}</Badge>
+      {isUnpaid(order) && <UnpaidBadge />}
+    </>
+  );
 }
 
-export function FulfillmentBadge({ status }: { status: FulfillmentStatus }) {
-  const tone =
-    status === 'READY'
-      ? 'green'
-      : status === 'PREPARING'
-        ? 'blue'
-        : status === 'HANDED_OVER'
-          ? 'neutral'
-          : 'amber';
-  return <Badge tone={tone}>{FULFILLMENT_STATUS_LABEL[status]}</Badge>;
+export function UnpaidBadge() {
+  return <Badge tone="red">Belum dibayar</Badge>;
 }
 
 export function SourceBadge({

@@ -8,12 +8,19 @@ import { type PlanIngredient, planProduction } from './plan';
 export class ProductionPlanService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Rekap dari order PENDING dengan tanggal kirim terpilih (PAID sudah memotong stok). */
+  /**
+   * Rekap dari order yang menunggu persetujuan atau sedang diproses untuk tanggal kirim terpilih.
+   * Order yang sudah disetujui sudah memotong stok, jadi pcs-nya dikembalikan ke stok acuan
+   * (barangnya masih harus disiapkan dari stok itu).
+   */
   async plan(date: string): Promise<ProductionPlanView> {
     assertDateKey(date);
     const [orders, products, recipes, ingredients, packaging] = await Promise.all([
       this.prisma.order.findMany({
-        where: { status: 'PENDING', deliveryDate: dateOnly(date) },
+        where: {
+          deliveryDate: dateOnly(date),
+          OR: [{ status: 'PENDING' }, { status: 'PAID', fulfillmentStatus: 'PROCESSING' }],
+        },
         include: { items: { include: { variant: { select: { productId: true } } } } },
       }),
       this.prisma.product.findMany({ select: { id: true, stockPcs: true } }),
@@ -27,6 +34,13 @@ export class ProductionPlanService {
         ...(packagingByVariant.get(p.variantId) ?? []),
         { ingredientId: p.ingredientId, qty: p.qty.toNumber() },
       ]);
+    }
+    const approvedPcs = new Map<string, number>();
+    for (const o of orders.filter((o) => o.status === 'PAID')) {
+      for (const i of o.items) {
+        const id = i.variant.productId;
+        approvedPcs.set(id, (approvedPcs.get(id) ?? 0) + i.qty * i.packSize);
+      }
     }
     const lines = (r: (typeof recipes)[number]) =>
       r.lines.map((l) => ({ ingredientId: l.ingredientId, qty: l.qty.toNumber() }));
@@ -45,7 +59,9 @@ export class ProductionPlanService {
           subtotal: i.subtotal,
         })),
       })),
-      products: new Map(products.map((p) => [p.id, { stockPcs: p.stockPcs }])),
+      products: new Map(
+        products.map((p) => [p.id, { stockPcs: p.stockPcs + (approvedPcs.get(p.id) ?? 0) }]),
+      ),
       productRecipes: new Map(
         recipes
           .filter((r) => r.productId)

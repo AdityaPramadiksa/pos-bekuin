@@ -64,7 +64,7 @@ export function SalesView({ d }: { d: SalesReport }) {
         <StatTile
           label="Omzet bersih"
           value={formatRupiah(s.netSales)}
-          sub={`${s.orders} order lunas`}
+          sub={`${s.orders} order disetujui`}
         />
         <StatTile
           label="Laba kotor"
@@ -312,7 +312,15 @@ export function CashflowView({ d }: { d: CashflowReport }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
-        <StatTile label="Kas masuk" value={formatRupiah(d.inflow.total)} />
+        <StatTile
+          label="Kas masuk"
+          value={formatRupiah(d.inflow.total)}
+          sub={
+            d.inflow.unpaid.count
+              ? `+ ${formatRupiah(d.inflow.unpaid.amount)} belum dibayar (${d.inflow.unpaid.count})`
+              : undefined
+          }
+        />
         <StatTile label="Kas keluar" value={formatRupiah(d.outflow.total)} />
         <StatTile label="Bersih" value={formatRupiah(d.net)} tone={d.net < 0 ? 'bad' : undefined} />
       </div>
@@ -482,15 +490,14 @@ export function QrServiceView({ d }: { d: QrServiceReport }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        <StatTile label="Order QR" value={String(d.orders)} sub={`${d.paid} lunas`} />
+        <StatTile label="Order QR" value={String(d.orders)} sub={`${d.paid} disetujui`} />
         <StatTile label="Omzet QR" value={formatRupiah(d.revenue)} />
         <StatTile label="Ditolak / batal" value={`${d.rejected} / ${d.cancelled}`} />
-        <StatTile label="Rata-rata total" value={minutes(a.total)} sub="pesan → diserahkan" />
+        <StatTile label="Rata-rata total" value={minutes(a.total)} sub="pesan → siap" />
       </div>
       <Card title="Rata-rata waktu per tahap">
-        <StatementRow label="Pesan → dibayar (approve)" value={minutes(a.orderToPaid)} />
-        <StatementRow label="Dibayar → siap" value={minutes(a.paidToReady)} />
-        <StatementRow label="Siap → diserahkan" value={minutes(a.readyToHanded)} />
+        <StatementRow label="Pesan → disetujui" value={minutes(a.orderToPaid)} />
+        <StatementRow label="Disetujui → siap/selesai" value={minutes(a.paidToDone)} />
       </Card>
       {d.byDay.length > 1 && (
         <Card title="Omzet QR per hari">

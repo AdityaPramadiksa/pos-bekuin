@@ -12,7 +12,7 @@ import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useOrder, useSettings } from '@/lib/queries';
 import { useAuthStore } from '@/stores/auth';
 import { DeliveryInfo } from './DeliveryInfo';
-import { FulfillmentBadge, SourceBadge, StatusBadge } from './order-ui';
+import { SourceBadge, StatusBadge } from './order-ui';
 import { categoryLabel, formatDateKey, formatDateTime } from './order-format';
 
 const ACTION_LABEL: Record<string, string> = {
@@ -112,9 +112,8 @@ export function OrderDetailDialog({
         o && (
           <div className="space-y-4 text-sm">
             <div className="flex flex-wrap gap-1.5">
-              <StatusBadge status={o.status} />
+              <StatusBadge order={o} />
               <SourceBadge order={o} />
-              {o.status === 'PAID' && <FulfillmentBadge status={o.fulfillmentStatus} />}
               <span className="text-xs text-stone-500">{ORDER_TYPE_LABEL[o.type]}</span>
             </div>
             <DeliveryInfo order={o} />

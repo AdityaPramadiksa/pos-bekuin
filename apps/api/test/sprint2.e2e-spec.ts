@@ -156,7 +156,7 @@ describe('Sprint 2: POS & approval (e2e)', () => {
       .expect(200);
     expect(res.body).toMatchObject({
       status: 'PAID',
-      fulfillmentStatus: 'QUEUED',
+      fulfillmentStatus: 'PROCESSING',
       paidAmount: 100000,
       changeAmount: 30000,
     });

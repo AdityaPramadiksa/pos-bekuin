@@ -181,7 +181,7 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     await api().post(`/api/v1/public/orders/${publicToken}/cancel`).expect(400);
   });
 
-  it('admin approve QRIS → dapur → pelanggan melihat Selesai', async () => {
+  it('admin approve QRIS → Diproses → Siap diambil (pelanggan melihatnya)', async () => {
     const saved = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken } });
     const approved = await admin
       .as(api().post(`/api/v1/orders/${saved.id}/approve`))
@@ -192,31 +192,39 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
     expect(approved.body.paymentMethod.name).toBe('QRIS');
     expect(approved.body.paidAmount).toBe(25000 + saved.uniqueCode!);
 
-    const queue = await staff.as(api().get('/api/v1/kitchen/queue')).expect(200);
-    expect(queue.body.map((o: { id: string }) => o.id)).toContain(saved.id);
+    const ids = (
+      body: { processing: { id: string }[]; done: { id: string }[] },
+      k: 'processing' | 'done',
+    ) => body[k].map((o) => o.id);
+    const list = await staff.as(api().get('/api/v1/processing')).expect(200);
+    expect(ids(list.body, 'processing')).toContain(saved.id);
+    expect((await api().get(`/api/v1/public/orders/${publicToken}`)).body).toMatchObject({
+      status: 'PAID',
+      fulfillmentStatus: 'PROCESSING',
+      isPaid: true,
+    });
 
     const step = (status: string, as = staff) =>
       as.as(api().patch(`/api/v1/orders/${saved.id}/fulfillment`)).send({ status });
-    await step('READY').expect(403); // staff tidak boleh loncat
-    await step('PREPARING').expect(200);
-    await step('QUEUED').expect(403); // staff tidak boleh mundur
-    await step('READY').expect(200);
-    expect((await api().get(`/api/v1/public/orders/${publicToken}`)).body).toMatchObject({
-      status: 'PAID',
-      fulfillmentStatus: 'READY',
-    });
-    await step('HANDED_OVER').expect(200);
+    await step('READY').expect(400); // status lama tidak berlaku lagi
+    await step('DONE').expect(200);
+    await step('PROCESSING').expect(403); // staff tidak boleh mundur
 
     const done = await api().get(`/api/v1/public/orders/${publicToken}`).expect(200);
     expect(done.body).toMatchObject({
-      fulfillmentStatus: 'HANDED_OVER',
+      fulfillmentStatus: 'DONE',
       paymentMethodName: 'QRIS',
       canCancel: false,
     });
+    expect(done.body.completedAt).toBeTruthy();
+    const after = await staff.as(api().get('/api/v1/processing')).expect(200);
+    expect(ids(after.body, 'processing')).not.toContain(saved.id);
+    expect(ids(after.body, 'done')).toContain(saved.id);
+
+    // Admin boleh mengembalikan ke Diproses (koreksi).
+    await step('PROCESSING', admin).expect(200);
     const row = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken } });
-    expect(row.preparingAt && row.readyAt && row.handedOverAt).toBeTruthy();
-    const queueAfter = await staff.as(api().get('/api/v1/kitchen/queue')).expect(200);
-    expect(queueAfter.body.map((o: { id: string }) => o.id)).not.toContain(saved.id);
+    expect(row).toMatchObject({ fulfillmentStatus: 'PROCESSING', completedAt: null });
   });
 
   it('maksimal 3 pesanan menunggu per meja, pelanggan bisa batal', async () => {

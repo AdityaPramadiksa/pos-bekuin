@@ -147,7 +147,7 @@ function OpenShift({
       </div>
       <div className="mt-3 divide-y divide-stone-100">
         <div className="pb-2">
-          <Row label="Order lunas" value={String(s.orders)} />
+          <Row label="Order disetujui" value={String(s.orders)} />
           <Row label="Penjualan (semua metode)" value={formatRupiah(s.sales)} />
           {s.byMethod.map((m) => (
             <Row key={m.key} label={`· ${m.label} (${m.count})`} value={formatRupiah(m.amount)} />

@@ -26,6 +26,7 @@ function order(partial: Partial<CalcOrder>): CalcOrder {
     hppTotal: 26000,
     // 25 Sep 2026 10:15 WITA
     approvedAt: new Date('2026-09-25T02:15:00Z'),
+    paidAt: new Date('2026-09-25T02:15:00Z'),
     createdAt: new Date('2026-09-25T02:10:00Z'),
     paymentMethodId: 'cash',
     paymentMethodName: 'Cash',

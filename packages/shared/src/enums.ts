@@ -40,10 +40,8 @@ export type OrderType = (typeof OrderType)[keyof typeof OrderType];
 
 /** Status penyiapan (dapur/packing), terpisah dari status bayar. */
 export const FulfillmentStatus = {
-  QUEUED: 'QUEUED',
-  PREPARING: 'PREPARING',
-  READY: 'READY',
-  HANDED_OVER: 'HANDED_OVER',
+  PROCESSING: 'PROCESSING',
+  DONE: 'DONE',
 } as const;
 export type FulfillmentStatus = (typeof FulfillmentStatus)[keyof typeof FulfillmentStatus];
 
@@ -60,15 +58,13 @@ export type SalesCategoryCode = (typeof SalesCategoryCode)[keyof typeof SalesCat
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   PENDING: 'Menunggu approval',
-  PAID: 'Lunas',
+  PAID: 'Disetujui',
   REJECTED: 'Ditolak',
   CANCELLED: 'Dibatalkan',
   VOIDED: 'Void',
 };
 
 export const FULFILLMENT_STATUS_LABEL: Record<FulfillmentStatus, string> = {
-  QUEUED: 'Antre',
-  PREPARING: 'Disiapkan',
-  READY: 'Siap',
-  HANDED_OVER: 'Diserahkan',
+  PROCESSING: 'Diproses',
+  DONE: 'Selesai',
 };

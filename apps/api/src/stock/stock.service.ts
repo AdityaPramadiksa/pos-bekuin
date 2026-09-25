@@ -13,7 +13,8 @@ import {
 
 export interface MovementMeta {
   type: MovementType;
-  userId: string;
+  /** null = otomatis oleh sistem. */
+  userId: string | null;
   refType?: string;
   refId?: string;
   note?: string;

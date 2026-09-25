@@ -81,7 +81,7 @@ export class StockQueries {
       refType: m.refType,
       refId: m.refId,
       note: m.note,
-      userName: m.user.name,
+      userName: m.user?.name ?? 'Sistem (otomatis)',
       createdAt: m.createdAt.toISOString(),
     }));
   }

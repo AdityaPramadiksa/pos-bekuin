@@ -1,6 +1,6 @@
 ---
 name: bekuin-qr-order
-description: Aturan self-order QR meja (role pelanggan tanpa login), endpoint /public, halaman lacak pesanan, dan antrian dapur Bekuin POS. Gunakan saat mengerjakan TablesModule, PublicModule, KitchenModule, atau halaman /m dan /o.
+description: Aturan self-order QR meja & link order online (pelanggan tanpa login), endpoint /public, halaman lacak pesanan, halaman Diproses, dan webhook QRIS otomatis (notifikasi DANA) Bekuin POS. Gunakan saat mengerjakan TablesModule, PublicModule, ProcessingService, PaymentNotificationsModule, atau halaman /m, /pesan, dan /o.
 ---
 
 # Aturan Self-Order QR Meja
@@ -27,12 +27,17 @@ description: Aturan self-order QR meja (role pelanggan tanpa login), endpoint /p
 - Emit `order.status` ke room itu setiap kali status bayar atau `fulfillmentStatus` berubah.
 
 ## Alur status yang dilihat pelanggan
-PENDING → (admin approve QRIS) PAID+QUEUED → PREPARING → READY → HANDED_OVER. REJECTED menampilkan alasan.
+PENDING → (admin setujui / QRIS terdeteksi) PAID + PROCESSING ("Diproses") → PAID + DONE: "Dikirim" bila `deliveryMethod = DELIVERY`, selain itu "Siap diambil" (`finalStage` di shared). REJECTED menampilkan alasan. `isPaid` = `paidAt` terisi (COD bisa diproses sebelum dibayar).
 
-## Antrian dapur
-- `fulfillmentStatus` hanya boleh maju satu langkah: QUEUED → PREPARING → READY → HANDED_OVER (staff & admin). Mundur hanya oleh admin.
-- Isi `preparingAt`, `readyAt`, `handedOverAt` untuk laporan layanan.
-- Hanya order PAID yang masuk antrian dapur.
+## Halaman Diproses (pengganti antrian dapur & packing)
+- `GET /processing`: order PAID + PROCESSING (semua tanggal kirim) dan yang DONE hari ini. Rangkuman item dihitung `summarizeProcessing` (shared).
+- `PATCH /orders/:id/fulfillment`: PROCESSING → DONE (staff & admin, isi `completedAt`); DONE → PROCESSING hanya admin.
+- `POST /orders/:id/mark-paid` (admin): order disetujui yang `paidAt` null → lunas; cash wajib shift terbuka dan masuk shift saat itu.
+
+## QRIS otomatis (notifikasi DANA lewat MacroDroid)
+- `POST /public/payment-notifications/:key` (`@Public` + throttle 30/menit). Kunci = `settings.paymentWebhookKey` (acak, rotate lewat `POST /payment-notifications/rotate-key`, hanya admin yang bisa melihat di `GET /payment-notifications/setup`).
+- `parsePaymentNotification` (fungsi murni, teruji): hanya uang masuk; uang keluar/top up/cashback diabaikan. Nominal harus sama persis dengan `total + uniqueCode` tepat satu order PENDING ber-QRIS (3 hari terakhir); lebih dari satu → AMBIGUOUS, tidak disetujui.
+- Setuju otomatis memakai `approveInTx(..., userId = null, { allowNegativeStock: true })` di bawah advisory lock 7_240_003; duplikat 10 menit diabaikan. Semua notifikasi dicatat di `payment_notifications`. Emit `order.autoApproved` ke admin (bunyi + cetak struk bila printer terhubung).
 
 ## QR
 - URL QR: `${PUBLIC_WEB_URL}/m/${qrToken}`. Rotate = token baru, token lama langsung 404.
@@ -46,6 +51,6 @@ PENDING → (admin approve QRIS) PAID+QUEUED → PREPARING → READY → HANDED_
 ## Pembayaran & approval
 - `GET /public/orders/:publicToken` menyertakan `payment` (tipe, nominal = total + kode unik, `qrisPayload` bernominal dari `settings.qrisPayload` lewat `qrisWithAmount`). Jangan pernah mengirim `order.id`.
 - `settings.qrisPayload` hanya QRIS **statis** dengan CRC valid (`qrisInfo`); web membacanya otomatis dari gambar QRIS yang diunggah.
-- Approve order `QR_TABLE`: item/jumlah dan diskon tidak boleh berubah (`assertCustomerOrderUnchanged`), juga lewat `PATCH /orders/:id`. Metode default = pilihan pelanggan; QRIS pelanggan dicatat `paidAmount = total + uniqueCode`. Omzet tetap memakai `total`.
+- Approve order pelanggan (`QR_TABLE`/`ONLINE`): item/jumlah dan diskon tidak boleh berubah (`assertCustomerOrderUnchanged`), juga lewat `PATCH /orders/:id`. Metode default = pilihan pelanggan; QRIS pelanggan dicatat `paidAmount = total + uniqueCode`. Omzet tetap memakai `total`.
 - Bukti bayar opsional; unggah hanya untuk metode non-Cash.
 

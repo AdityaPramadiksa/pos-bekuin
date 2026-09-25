@@ -1,4 +1,5 @@
 import {
+  BellRing,
   BookOpen,
   ChevronRight,
   Cog,
@@ -38,6 +39,12 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         description: 'Cash, Transfer, QRIS, e-wallet',
         icon: CreditCard,
         to: '/admin/lainnya/metode-bayar',
+      },
+      {
+        label: 'QRIS Otomatis (DANA)',
+        description: 'Baca notifikasi DANA di HP admin, order QRIS langsung diproses',
+        icon: BellRing,
+        to: '/admin/lainnya/qris-otomatis',
       },
       {
         label: 'Link Order Online',

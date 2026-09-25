@@ -7,7 +7,7 @@ const order = (partial: Partial<OrderEvent> = {}): OrderEvent => ({
   orderNo: 'BK-20260925-0001',
   status: 'PENDING',
   source: 'POS',
-  fulfillmentStatus: 'QUEUED',
+  fulfillmentStatus: 'PROCESSING',
   createdById: 'staff1',
   label: 'Bu Sari · Rp42.000',
   ...partial,
@@ -59,5 +59,16 @@ describe('isAllowedPushEndpoint', () => {
     expect(isAllowedPushEndpoint('https://fcm.googleapis.com.evil.com/x')).toBe(false);
     expect(isAllowedPushEndpoint('https://127.0.0.1/x')).toBe(false);
     expect(isAllowedPushEndpoint('bukan url')).toBe(false);
+  });
+
+  it('QRIS terdeteksi otomatis (tanpa pelaku) → semua admin ke halaman Diproses', () => {
+    const [t] = pushPlan(
+      'order.updated',
+      order({ source: 'ONLINE', createdById: null, status: 'PAID' }),
+      null,
+    );
+    expect(t).toMatchObject({ to: 'admins', exceptUserId: null });
+    expect(t.message.title).toBe('QRIS masuk · BK-20260925-0001 diproses');
+    expect(t.message.url).toBe('/admin/diproses');
   });
 });

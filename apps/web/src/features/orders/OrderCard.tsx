@@ -2,7 +2,7 @@ import { formatRupiah, type OrderView } from '@bekuin/shared';
 import { ImageIcon } from 'lucide-react';
 import { useNow } from '@/lib/useNow';
 import { cn } from '@/lib/utils';
-import { FulfillmentBadge, SourceBadge, StatusBadge } from './order-ui';
+import { SourceBadge, StatusBadge } from './order-ui';
 import { formatTime, itemsSummary, timeAgo } from './order-format';
 
 export function OrderCard({
@@ -60,11 +60,8 @@ export function OrderCard({
         </div>
         <div className="text-right">
           <p className="font-bold tabular-nums">{formatRupiah(order.total)}</p>
-          <div className="mt-0.5 flex justify-end gap-1">
-            <StatusBadge status={order.status} />
-            {order.status === 'PAID' && order.fulfillmentStatus !== 'HANDED_OVER' && (
-              <FulfillmentBadge status={order.fulfillmentStatus} />
-            )}
+          <div className="mt-0.5 flex flex-wrap justify-end gap-1">
+            <StatusBadge order={order} />
           </div>
         </div>
       </div>

@@ -76,7 +76,7 @@ export function AdminDashboardPage() {
                 <Stat
                   label="Omzet hari ini"
                   value={formatRupiah(s.paid.revenue)}
-                  sub={`${s.paid.count} order lunas`}
+                  sub={`${s.paid.count} order disetujui`}
                   icon={<Wallet className="size-4" />}
                 />
                 <Stat

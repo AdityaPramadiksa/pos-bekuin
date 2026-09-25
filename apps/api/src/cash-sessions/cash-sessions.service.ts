@@ -134,6 +134,7 @@ export class CashSessionsService {
           status: true,
           total: true,
           discount: true,
+          paidAt: true,
           cashSessionId: true,
           paymentMethodId: true,
           paymentMethod: { select: { name: true, type: true } },
@@ -157,10 +158,11 @@ export class CashSessionsService {
     const byMethod = new Map<string, AmountRow>();
     const byCategory = new Map<string, AmountRow & { packs: number }>();
     for (const o of paid) {
-      const key = o.paymentMethodId ?? '-';
+      // Order disetujui yang uangnya belum diterima (COD) dipisah dari metode bayarnya.
+      const key = o.paidAt ? (o.paymentMethodId ?? '-') : 'unpaid';
       const m = byMethod.get(key) ?? {
         key,
-        label: o.paymentMethod?.name ?? '-',
+        label: o.paidAt ? (o.paymentMethod?.name ?? '-') : 'Belum dibayar',
         count: 0,
         amount: 0,
       };

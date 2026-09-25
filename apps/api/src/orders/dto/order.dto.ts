@@ -123,6 +123,14 @@ export class ApproveOrderDto {
   @MaxLength(60)
   paymentRef?: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'Uang belum diterima (COD / bayar saat ambil): order tetap diproses, ditandai lunas nanti',
+  })
+  @IsOptional()
+  @IsBoolean()
+  payLater?: boolean;
+
   @ApiPropertyOptional({ type: [ApproveItemDto], description: 'Koreksi qty sebelum approve' })
   @IsOptional()
   @IsArray()
@@ -198,4 +206,31 @@ export class BulkApproveDto {
   orderIds: string[];
 
   @ApiProperty() @IsString() paymentMethodId: string;
+
+  @ApiPropertyOptional({ description: 'Semua dicatat belum dibayar (ditagih/COD)' })
+  @IsOptional()
+  @IsBoolean()
+  payLater?: boolean;
+}
+
+/** Tandai order COD / bayar-saat-ambil sudah dibayar. */
+export class MarkPaidDto {
+  @ApiPropertyOptional({ description: 'Kosong = metode bayar yang sudah tercatat di order' })
+  @IsOptional()
+  @IsString()
+  paymentMethodId?: string;
+
+  @ApiPropertyOptional({ description: 'Wajib untuk Cash: uang diterima (rupiah)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  paidAmount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trimOrNull)
+  @IsString()
+  @MaxLength(60)
+  paymentRef?: string | null;
 }

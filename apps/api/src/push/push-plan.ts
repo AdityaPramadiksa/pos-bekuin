@@ -48,7 +48,7 @@ export function pushPlan(
       to: 'user',
       userId: order.createdById,
       message: {
-        title: `${order.orderNo} ${order.status === 'PAID' ? 'sudah dibayar' : 'ditolak'}`,
+        title: `${order.orderNo} ${order.status === 'PAID' ? 'disetujui, diproses' : 'ditolak'}`,
         body: order.label,
         url: '/staff/history',
         tag,
@@ -67,6 +67,19 @@ export function pushPlan(
             : `${order.orderNo} dibatalkan pelanggan`,
         body: order.label,
         url: '/admin/approval',
+        tag,
+      },
+    });
+  }
+  // QRIS terdeteksi dari notifikasi e-wallet → order otomatis diproses.
+  if (actorId === null && order.status === 'PAID') {
+    targets.push({
+      to: 'admins',
+      exceptUserId: null,
+      message: {
+        title: `QRIS masuk · ${order.orderNo} diproses`,
+        body: order.label,
+        url: '/admin/diproses',
         tag,
       },
     });

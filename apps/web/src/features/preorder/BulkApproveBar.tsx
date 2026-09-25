@@ -16,7 +16,9 @@ interface BulkResult {
   failed: number;
 }
 
-/** Bar bawah untuk approve massal order yang dicentang (satu metode bayar untuk semua). */
+const LATER = '__later';
+
+/** Bar bawah untuk memproses massal order yang dicentang (satu metode bayar untuk semua). */
 export function BulkApproveBar({
   selected,
   onDone,
@@ -28,7 +30,10 @@ export function BulkApproveBar({
   const methods = usePaymentMethods();
   const settings = useSettings();
   const nonCash = (methods.data ?? []).filter((m) => m.type !== 'CASH');
+  const cash = (methods.data ?? []).find((m) => m.type === 'CASH');
   const [methodId, setMethodId] = useState('');
+  // Belum dibayar: diproses dulu, ditagih/COD lalu ditandai lunas di halaman Diproses.
+  const payLater = methodId === LATER;
   const [result, setResult] = useState<BulkResult | null>(null);
   const total = selected.reduce((s, o) => s + o.total, 0);
 
@@ -37,12 +42,13 @@ export function BulkApproveBar({
       (
         await api.post<BulkResult>('/orders/bulk-approve', {
           orderIds: selected.map((o) => o.id),
-          paymentMethodId: methodId || nonCash[0]?.id,
+          paymentMethodId: payLater ? (cash?.id ?? nonCash[0]?.id) : methodId || nonCash[0]?.id,
+          payLater: payLater || undefined,
         })
       ).data,
     onSuccess: (data) => {
       setResult(data);
-      for (const key of ['orders', 'order', 'reports', 'stock', 'catalog', 'kitchen'])
+      for (const key of ['orders', 'order', 'reports', 'stock', 'catalog', 'processing'])
         void queryClient.invalidateQueries({ queryKey: [key] });
     },
     onError: (error) => toast.error(errorMessage(error)),
@@ -70,23 +76,24 @@ export function BulkApproveBar({
             </p>
             <Select
               aria-label="Metode bayar"
-              className="ml-auto w-40"
+              className="ml-auto w-52"
               value={methodId || nonCash[0]?.id || ''}
               onChange={(e) => setMethodId(e.target.value)}
             >
               {nonCash.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  Lunas · {m.name}
                 </option>
               ))}
+              <option value={LATER}>Belum dibayar (tagih / COD)</option>
             </Select>
             <Button loading={approve.isPending} onClick={() => approve.mutate()}>
-              Approve massal
+              Proses massal
             </Button>
           </div>
           <p className="mx-auto mt-1 max-w-3xl text-xs text-stone-500">
-            Metode ini untuk order staff/WA; order pelanggan QR memakai cara bayar pilihannya. Cash
-            yang perlu kembalian: approve satu per satu.
+            Untuk order staff/WA; order pelanggan memakai cara bayar pilihannya (COD online otomatis
+            belum dibayar). Cash yang perlu kembalian: proses satu per satu.
           </p>
         </div>
       )}
@@ -96,7 +103,7 @@ export function BulkApproveBar({
           setResult(null);
           onDone();
         }}
-        title={`Approve massal: ${result?.succeeded ?? 0} berhasil, ${result?.failed ?? 0} gagal`}
+        title={`Proses massal: ${result?.succeeded ?? 0} berhasil, ${result?.failed ?? 0} gagal`}
         footer={
           <>
             <Button

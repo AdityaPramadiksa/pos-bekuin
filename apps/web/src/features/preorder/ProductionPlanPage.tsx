@@ -23,7 +23,7 @@ export function ProductionPlanPage() {
     <>
       <PageHeader
         title="Rekap Produksi"
-        subtitle="Dari order PENDING per tanggal kirim"
+        subtitle="Order menunggu + diproses per tanggal kirim"
         action={
           <Input
             type="date"
