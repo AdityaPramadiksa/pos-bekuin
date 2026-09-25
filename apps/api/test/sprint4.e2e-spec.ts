@@ -42,28 +42,37 @@ describe('Sprint 4: bahan, resep, HPP (e2e)', () => {
     await staff.as(api().get('/api/v1/recipes')).expect(403);
   });
 
-  it('HPP & margin varian seeder cocok dengan PRD 7.5', async () => {
+  it('HPP & margin varian seeder konsisten dengan resep + kemasan (angka persis PRD 7.5 dijaga unit test)', async () => {
     const res = await admin.as(api().get('/api/v1/products')).expect(200);
+    const recipes = await admin.as(api().get('/api/v1/recipes')).expect(200);
     const udang = res.body.find((p: { name: string }) => p.name === 'Udang Keju');
-    expect(udang.costPerPcs).toBe(2160);
+    const recipe = recipes.body.find(
+      (r: { productName: string }) => r.productName === 'Udang Keju',
+    );
+    // HPP per pcs = biaya resep saat ini (mengikuti harga bahan terbaru), dibulatkan Rp10
+    expect(udang.costPerPcs).toBe(Math.round(recipe.costPerUnit / 10) * 10);
     const f6 = udang.variants.find(
       (v: { categoryCode: string; packSize: number }) =>
         v.categoryCode === 'FROZEN' && v.packSize === 6,
     );
-    expect(f6).toMatchObject({ price: 22000, hppPerPack: 16260, margin: 5740, marginPct: 26 });
+    const packaging = f6.packaging.reduce(
+      (sum: number, p: { qty: number; unitCost: number }) => sum + p.qty * p.unitCost,
+      0,
+    );
+    expect(f6.hppPerPack).toBe(Math.round(6 * udang.costPerPcs + packaging));
+    expect(f6.margin).toBe(f6.price - f6.hppPerPack);
+    expect(f6.marginPct).toBe(Math.round((f6.margin * 100) / f6.price));
     expect(f6.packaging.map((p: { name: string }) => p.name).sort()).toEqual([
       'Plastik vacuum',
       'Saos',
       'Stiker logo',
     ]);
-    const recipes = await admin.as(api().get('/api/v1/recipes')).expect(200);
     const adonan = recipes.body.find((r: { name: string }) => r.name === 'Adonan Dasar');
-    expect(adonan).toMatchObject({
-      type: 'SEMI_FINISHED',
-      yieldQty: 1200,
-      yieldUnit: 'GRAM',
-      totalCost: 71361,
-    });
+    expect(adonan).toMatchObject({ type: 'SEMI_FINISHED', yieldQty: 1200, yieldUnit: 'GRAM' });
+    expect(adonan.totalCost).toBeCloseTo(
+      adonan.lines.reduce((sum: number, l: { cost: number }) => sum + l.cost, 0),
+      0,
+    );
   });
 
   let tepungId: string;
