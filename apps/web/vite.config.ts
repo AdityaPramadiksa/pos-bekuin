@@ -39,11 +39,24 @@ export default defineConfig({
       workbox: {
         // Cache shell aplikasi agar tetap terbuka offline; data API tidak di-cache.
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/, /^\/socket\.io/],
+        // Penanganan notifikasi Web Push (public/push-sw.js).
+        importScripts: ['push-sw.js'],
       },
     }),
   ],
   resolve: {
     alias: { '@': path.resolve(__dirname, 'src') },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Library jarang berubah dipisah agar tetap ter-cache saat kode aplikasi diperbarui.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          data: ['@tanstack/react-query', 'axios', 'socket.io-client', 'zustand'],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

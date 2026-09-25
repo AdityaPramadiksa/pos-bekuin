@@ -116,18 +116,19 @@ model User {
   updatedAt          DateTime  @updatedAt
 
   refreshTokens     RefreshToken[]
-  ordersMade        Order[]          @relation("OrderCreator")
-  ordersApproved    Order[]          @relation("OrderApprover")
+  ordersMade        Order[]            @relation("OrderCreator")
+  ordersApproved    Order[]            @relation("OrderApprover")
   orderLogs         OrderLog[]
   batches           OrderBatch[]
   stockMovements    StockMovement[]
   purchases         Purchase[]
   productions       Production[]
-  opnamesCreated    StockOpname[]    @relation("OpnameCreator")
-  opnamesFinalized  StockOpname[]    @relation("OpnameFinalizer")
+  opnamesCreated    StockOpname[]      @relation("OpnameCreator")
+  opnamesFinalized  StockOpname[]      @relation("OpnameFinalizer")
   expenses          Expense[]
-  cashSessionsOpen  CashSession[]    @relation("CashSessionOpener")
-  cashSessionsClose CashSession[]    @relation("CashSessionCloser")
+  cashSessionsOpen  CashSession[]      @relation("CashSessionOpener")
+  cashSessionsClose CashSession[]      @relation("CashSessionCloser")
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -642,4 +643,20 @@ model CashSession {
 
   @@index([status])
   @@map("cash_sessions")
+}
+
+/// Langganan Web Push per perangkat (notifikasi order saat aplikasi di background).
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

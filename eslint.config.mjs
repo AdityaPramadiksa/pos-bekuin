@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist',
+      '**/dist-seed',
       '**/dev-dist',
       '**/coverage',
       '**/node_modules',
@@ -25,6 +26,11 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
     },
+  },
+  {
+    // Service worker tambahan (dimuat Workbox lewat importScripts).
+    files: ['apps/web/public/**/*.js'],
+    languageOptions: { globals: globals.serviceworker },
   },
   {
     files: ['apps/api/**/*.ts'],

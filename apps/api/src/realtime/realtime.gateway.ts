@@ -22,7 +22,8 @@ import { PrismaService } from '../prisma/prisma.service';
  * - kitchen           : staff & admin (antrian dapur)
  * - order:<publicToken>: halaman lacak pesanan pelanggan QR (tanpa login)
  */
-@WebSocketGateway({ cors: { origin: true, credentials: true } })
+// CORS diatur CorsIoAdapter (app.setup.ts) dari CORS_ORIGIN.
+@WebSocketGateway()
 export class RealtimeGateway implements OnGatewayInit {
   private readonly logger = new Logger(RealtimeGateway.name);
   @WebSocketServer() server: Server;
@@ -60,6 +61,10 @@ export class RealtimeGateway implements OnGatewayInit {
   @SubscribeMessage('order.watch')
   async watchOrder(@ConnectedSocket() socket: Socket, @MessageBody() publicToken: unknown) {
     if (typeof publicToken !== 'string' || publicToken.length > 64) return { ok: false };
+    // Batasi lookup DB per koneksi tanpa login (cegah tebak token massal).
+    const watched = ((socket.data.watchCount as number | undefined) ?? 0) + 1;
+    socket.data.watchCount = watched;
+    if (watched > 20) return { ok: false };
     const exists = await this.prisma.order.count({ where: { publicToken } });
     if (!exists) return { ok: false };
     await socket.join(`order:${publicToken}`);

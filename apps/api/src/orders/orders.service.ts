@@ -11,6 +11,7 @@ import { lockOpenCashSession } from '../cash-sessions/cash-sessions.service';
 import { addDays, businessRange, dateOnly, todayKey } from '../common/dates';
 import { CostingService } from '../costing/costing.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { StockService } from '../stock/stock.service';
 import type { StockChange } from '../stock/stock-plan';
@@ -57,6 +58,7 @@ export class OrdersService {
     private readonly stock: StockService,
     private readonly realtime: RealtimeGateway,
     private readonly costing: CostingService,
+    private readonly push: PushService,
   ) {}
 
   // ───────────────────────────── Baca ─────────────────────────────
@@ -474,7 +476,9 @@ export class OrdersService {
       where: { id },
       include: orderDetailInclude,
     });
-    this.realtime.orderChanged(event, toOrderEvent(order));
+    const orderEvent = toOrderEvent(order);
+    this.realtime.orderChanged(event, orderEvent);
+    this.push.orderChanged(event, orderEvent, user?.sub ?? null);
     this.realtime.orderStatusForCustomer(order.publicToken, {
       status: order.status,
       fulfillmentStatus: order.fulfillmentStatus,

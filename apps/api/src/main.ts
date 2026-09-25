@@ -12,17 +12,26 @@ async function bootstrap() {
   configureApp(app);
   app.enableShutdownHooks();
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Bekuin POS API')
-    .setDescription('Order, approval, self-order QR meja, stok, HPP, dan laporan keuangan')
-    .setVersion('0.2.0')
-    .addBearerAuth()
-    .build();
-  SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  const config = app.get(ConfigService<Env, true>);
+  const swaggerEnabled =
+    (config.get('SWAGGER_ENABLED', { infer: true }) ??
+      (config.get('NODE_ENV', { infer: true }) === 'production' ? 'false' : 'true')) === 'true';
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Bekuin POS API')
+      .setDescription('Order, approval, self-order QR meja, stok, HPP, dan laporan keuangan')
+      .setVersion('0.2.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup('api/docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  }
 
-  const port = app.get(ConfigService<Env, true>).get('PORT', { infer: true });
+  const port = config.get('PORT', { infer: true });
   await app.listen(port);
-  Logger.log(`API jalan di http://localhost:${port}/api/v1 — Swagger: /api/docs`, 'Bootstrap');
+  Logger.log(
+    `API jalan di http://localhost:${port}/api/v1${swaggerEnabled ? ' — Swagger: /api/docs' : ''}`,
+    'Bootstrap',
+  );
 }
 
 void bootstrap();

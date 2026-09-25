@@ -23,6 +23,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(200)
   refresh(@Body() dto: RefreshDto, @Headers('user-agent') userAgent?: string) {
@@ -30,6 +32,8 @@ export class AuthController {
   }
 
   @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('logout')
   @HttpCode(204)
   async logout(@Body() dto: RefreshDto) {

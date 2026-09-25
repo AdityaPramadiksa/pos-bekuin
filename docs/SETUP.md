@@ -153,3 +153,9 @@ Sebelum commit, Husky otomatis menjalankan lint + format pada file yang berubah.
 | "Tidak bisa terhubung ke server" / "Server API belum siap" | API butuh ±20 detik untuk start. Tunggu tulisan `API jalan di ...` di terminal, lalu coba lagi. Pastikan `VITE_API_URL=/api/v1` di `apps/web/.env` |
 | Tombol Hubungkan printer abu-abu | Bukan Chrome, atau bukan HTTPS/localhost |
 | Printer tidak muncul di daftar | Printer mati/terhubung ke HP lain, atau printer hanya Bluetooth Classic (bukan BLE). Coba aplikasi RawBT sebagai fallback |
+| Notifikasi di halaman Akun gagal diaktifkan saat `pnpm dev` | Notifikasi push hanya jalan di versi build (HTTPS). Coba di server produksi, dan isi `VAPID_*` di `.env` API |
+| Approve Cash ditolak "Belum ada shift kasir" | Buka shift dulu di Lainnya → Keuangan → Shift Kasir |
+
+## 6. Online untuk Pelanggan
+
+Untuk dipakai sungguhan (QR meja dari HP pelanggan, printer, notifikasi), aplikasi harus online dengan HTTPS. Ikuti [DEPLOY.md](DEPLOY.md).

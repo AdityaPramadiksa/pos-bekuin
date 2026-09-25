@@ -681,6 +681,7 @@ REST dengan prefix `/api/v1`, respons JSON, validasi DTO class-validator, dan Sw
 | Cash | `GET /cash-sessions/current`, `POST /cash-sessions/open`, `POST /cash-sessions/:id/close`, `GET /cash-sessions` | Admin | Shift kasir ✅ |
 | Reports | `GET /reports/sales`, `/profit-loss`, `/product-profit`, `/cashflow`, `/top-products`, `/stock-movements`, `/shifts`, `/daily-closing`, `/qr-service` | Admin | Query `from`, `to` (WITA, maks. 400 hari); `daily-closing` memakai `date` ✅ |
 | Reports | `GET /reports/:type/export?format=csv|xlsx` | Admin | Export ✅ |
+| Push | `GET /push/public-key`, `POST/DELETE /push/subscribe` | Login (semua role) | Langganan Web Push per perangkat ✅ |
 
 ✅ = sudah diimplementasikan.
 
@@ -822,13 +823,15 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 
 ### Sprint 8: Polish, Keamanan, Deploy
 
-- [ ] Web Push untuk order baru saat aplikasi di background
-- [ ] Loading skeleton, empty state, toast error, konfirmasi aksi berbahaya, code-splitting per rute
-- [ ] Keamanan: audit rate limit endpoint publik, validasi upload, CORS produksi, header keamanan, cek OWASP dasar
-- [ ] Deploy: API + DB (Railway/VPS + Neon/Supabase), web ke Vercel, domain + HTTPS (wajib untuk Web Bluetooth & PWA)
-- [ ] Backup DB harian + uji restore
-- [ ] README lengkap: screenshot, arsitektur, ERD, cara menjalankan, akun demo; video demo 2 menit
-- [ ] Cetak & tempel QR di semua meja; pelatihan staff
+- [x] Web Push untuk order baru saat aplikasi di background (juga hasil approve/tolak ke staff, bukti bayar pelanggan)
+- [x] Loading skeleton, empty state, toast error, konfirmasi aksi berbahaya, code-splitting per rute
+- [x] Keamanan: audit rate limit endpoint publik, validasi upload, CORS produksi (HTTP + Socket.IO), header keamanan (helmet + CSP), cek OWASP dasar → [docs/SECURITY.md](docs/SECURITY.md)
+- [x] Deploy: Dockerfile API & web, `docker-compose.prod.yml` (PostgreSQL + API + Caddy HTTPS otomatis) diuji lokal; panduan VPS dan Railway/Neon/Vercel → [docs/DEPLOY.md](docs/DEPLOY.md)
+- [ ] Menjalankan deploy di server & domain milik Bekuin (langkah pemilik, ikuti docs/DEPLOY.md)
+- [x] Backup DB harian (+ foto upload) + skrip & uji restore
+- [x] README lengkap: screenshot, arsitektur, ERD, cara menjalankan, akun demo
+- [ ] Video demo 2 menit (pemilik)
+- [ ] Cetak & tempel QR di semua meja; pelatihan staff (pemilik)
 
 ### Backlog Pasca-Rilis
 

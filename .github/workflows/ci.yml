@@ -42,3 +42,18 @@ jobs:
           pnpm --filter @bekuin/api prisma:seed
       - run: pnpm --filter @bekuin/api test:e2e
       - run: pnpm build
+
+  # Pastikan image produksi (docker-compose.prod.yml) tetap bisa dibangun.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image API
+        run: docker buildx build --load -f apps/api/Dockerfile -t bekuin-api .
+      - name: Build image web
+        run: docker buildx build --load -f apps/web/Dockerfile -t bekuin-web .
+      - name: Validasi Caddyfile
+        run: docker run --rm -e DOMAIN=contoh.id -e ACME_EMAIL=ci@contoh.id bekuin-web caddy validate --config /etc/caddy/Caddyfile
+      - name: Validasi docker-compose.prod.yml
+        run: cp deploy/.env.example deploy/.env && sed -i 's/=$/=isi/' deploy/.env && docker compose -f docker-compose.prod.yml --env-file deploy/.env config -q

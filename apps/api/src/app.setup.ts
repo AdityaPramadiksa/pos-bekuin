@@ -3,6 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import type { Env } from './config/env';
+import { CorsIoAdapter } from './realtime/cors-io.adapter';
 import { LocalDiskStorage } from './uploads/storage';
 
 /** Konfigurasi global aplikasi; dipakai main.ts dan test e2e agar perilakunya sama. */
@@ -18,11 +19,14 @@ export function configureApp(app: NestExpressApplication) {
 
   // cross-origin: foto menu/QRIS boleh ditampilkan oleh web yang beda domain dengan API.
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  const origins = config
+    .get('CORS_ORIGIN', { infer: true })
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.useWebSocketAdapter(new CorsIoAdapter(app, origins));
   app.enableCors({
-    origin: config
-      .get('CORS_ORIGIN', { infer: true })
-      .split(',')
-      .map((o) => o.trim()),
+    origin: origins,
     credentials: true,
     // Nama file export laporan dibaca frontend dari header ini.
     exposedHeaders: ['Content-Disposition'],

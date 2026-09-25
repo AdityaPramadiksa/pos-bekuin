@@ -4,6 +4,7 @@ import type { JwtPayload } from '../auth/decorators/current-user.decorator';
 import { dateOnly, todayKey } from '../common/dates';
 import { OrdersService } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import type { ImportPreviewDto, ImportSaveDto } from './dto/import.dto';
 import { parseOrderText } from './parser';
@@ -14,6 +15,7 @@ export class OrderImportService {
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
     private readonly realtime: RealtimeGateway,
+    private readonly push: PushService,
   ) {}
 
   async catalog(): Promise<ImportCatalog> {
@@ -99,6 +101,7 @@ export class OrderImportService {
       include: { items: true },
     });
     this.realtime.batchCreated({ batchId, orders: orders.length, deliveryDate: dto.deliveryDate });
+    this.push.batchCreated(orders.length, user.sub);
     return {
       batchId,
       orders: orders.length,

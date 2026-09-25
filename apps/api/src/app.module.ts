@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProductAliasesModule } from './product-aliases/product-aliases.module';
 import { ProductionsModule } from './productions/productions.module';
 import { PublicModule } from './public/public.module';
+import { PushModule } from './push/push.module';
 import { PurchasesModule } from './purchases/purchases.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RecipesModule } from './recipes/recipes.module';
@@ -43,6 +44,7 @@ import { UsersModule } from './users/users.module';
     IngredientsModule,
     RecipesModule,
     RealtimeModule,
+    PushModule,
     StockModule,
     OrdersModule,
     ReportsModule,

@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/dist-seed
+**/dev-dist
+**/coverage
+**/*.tsbuildinfo
+.git
+.github
+.claude
+docs
+apps/api/uploads
+backups
+**/.env
+**/.env.*
+!**/.env.example
