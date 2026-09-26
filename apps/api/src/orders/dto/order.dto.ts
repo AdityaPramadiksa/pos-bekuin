@@ -125,6 +125,14 @@ export class ApproveOrderDto {
 
   @ApiPropertyOptional({
     description:
+      'Order pelanggan QRIS/Transfer tanpa bukti bayar di sistem: admin menyatakan sudah mengecek uang masuk',
+  })
+  @IsOptional()
+  @IsBoolean()
+  confirmWithoutProof?: boolean;
+
+  @ApiPropertyOptional({
+    description:
       'Uang belum diterima (COD / bayar saat ambil): order tetap diproses, ditandai lunas nanti',
   })
   @IsOptional()

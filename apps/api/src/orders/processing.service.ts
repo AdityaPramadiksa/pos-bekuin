@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { FulfillmentStatus } from '@prisma/client';
 import type { OrderView, ProcessingView } from '@bekuin/shared';
 import type { JwtPayload } from '../auth/decorators/current-user.decorator';
@@ -19,18 +14,23 @@ export class ProcessingService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  /** Semua order yang sedang diproses (semua tanggal kirim) + yang selesai hari ini. */
+  /**
+   * Order yang sedang diproses (semua tanggal kirim) + yang selesai hari ini.
+   * Staff hanya memantau order yang dia input sendiri.
+   */
   async list(user: JwtPayload): Promise<ProcessingView> {
     const isAdmin = user.role === 'ADMIN';
+    const mine = isAdmin ? {} : { createdById: user.sub };
     const [processing, done] = await Promise.all([
       this.prisma.order.findMany({
-        where: { status: 'PAID', fulfillmentStatus: 'PROCESSING' },
+        where: { status: 'PAID', fulfillmentStatus: 'PROCESSING', ...mine },
         include: orderInclude,
         orderBy: [{ deliveryDate: 'asc' }, { approvedAt: 'asc' }],
         take: 500,
       }),
       this.prisma.order.findMany({
         where: {
+          ...mine,
           status: 'PAID',
           fulfillmentStatus: 'DONE',
           completedAt: { gte: startOfBusinessDay(todayKey()) },
@@ -46,16 +46,13 @@ export class ProcessingService {
     };
   }
 
-  /** Diproses → Selesai (staff & admin). Mengembalikan ke Diproses hanya admin (koreksi). */
+  /** Diproses ⇄ Selesai (khusus admin; staff hanya memantau). */
   async setStatus(id: string, status: FulfillmentStatus, user: JwtPayload): Promise<OrderView> {
     const order = await this.prisma.order.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('Order tidak ditemukan');
     if (order.status !== 'PAID')
       throw new BadRequestException('Hanya order yang sudah disetujui yang bisa diproses');
     if (order.fulfillmentStatus === status) throw new BadRequestException('Status tidak berubah');
-    if (status === 'PROCESSING' && user.role !== 'ADMIN') {
-      throw new ForbiddenException('Hanya admin yang bisa membatalkan status selesai');
-    }
 
     const updated = await this.prisma.order.update({
       where: { id },

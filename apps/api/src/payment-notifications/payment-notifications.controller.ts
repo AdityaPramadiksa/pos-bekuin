@@ -7,7 +7,7 @@ import { PublicThrottlerGuard } from '../common/public-throttler.guard';
 import { PaymentNotificationDto, TestNotificationDto } from './dto/payment-notification.dto';
 import { PaymentNotificationsService } from './payment-notifications.service';
 
-/** Webhook dari MacroDroid di HP admin. Pengaman: kunci acak di URL (bisa diganti) + rate limit. */
+/** Webhook dari MacroDroid di HP admin (hanya mencatat). Pengaman: kunci acak di URL + rate limit. */
 @ApiTags('Public (webhook pembayaran)')
 @Public()
 @UseGuards(PublicThrottlerGuard)
@@ -34,6 +34,12 @@ export class PaymentNotificationsController {
   @Get('setup')
   setup() {
     return this.service.setup();
+  }
+
+  /** Notifikasi uang masuk yang cocok dengan tagihan order (pembanding bukti bayar). */
+  @Get('for-order/:orderId')
+  forOrder(@Param('orderId') orderId: string) {
+    return this.service.forOrder(orderId);
   }
 
   @Post('rotate-key')

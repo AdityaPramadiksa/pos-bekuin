@@ -112,3 +112,14 @@ export class CreateOnlineOrderDto {
   @MaxLength(40)
   paymentMethodId: string;
 }
+
+/** Riwayat pesanan: token pesanan yang tersimpan di HP pelanggan. */
+export class LookupOrdersDto {
+  @ApiProperty({ type: [String], maxItems: 50 })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(40, { each: true })
+  tokens: string[];
+}

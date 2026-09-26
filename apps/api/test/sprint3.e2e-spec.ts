@@ -188,27 +188,30 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
       .send({})
       .expect(200);
     expect(approved.body.paymentProofUrl).toMatch(/^\/uploads\/proof\//);
-    // Cara bayar pilihan pelanggan (QRIS) dipakai; uang masuk = total + kode unik.
+    // Cara bayar pilihan pelanggan (QRIS) dipakai; nominal pas sesuai total.
     expect(approved.body.paymentMethod.name).toBe('QRIS');
-    expect(approved.body.paidAmount).toBe(25000 + saved.uniqueCode!);
+    expect(approved.body.paidAmount).toBe(25000);
 
     const ids = (
       body: { processing: { id: string }[]; done: { id: string }[] },
       k: 'processing' | 'done',
     ) => body[k].map((o) => o.id);
-    const list = await staff.as(api().get('/api/v1/processing')).expect(200);
+    const list = await admin.as(api().get('/api/v1/processing')).expect(200);
     expect(ids(list.body, 'processing')).toContain(saved.id);
+    // Staff hanya memantau order yang dia input sendiri (bukan order pelanggan).
+    const staffList = await staff.as(api().get('/api/v1/processing')).expect(200);
+    expect(ids(staffList.body, 'processing')).not.toContain(saved.id);
     expect((await api().get(`/api/v1/public/orders/${publicToken}`)).body).toMatchObject({
       status: 'PAID',
       fulfillmentStatus: 'PROCESSING',
       isPaid: true,
     });
 
-    const step = (status: string, as = staff) =>
+    const step = (status: string, as = admin) =>
       as.as(api().patch(`/api/v1/orders/${saved.id}/fulfillment`)).send({ status });
+    await step('DONE', staff).expect(403); // staff hanya memantau
     await step('READY').expect(400); // status lama tidak berlaku lagi
     await step('DONE').expect(200);
-    await step('PROCESSING').expect(403); // staff tidak boleh mundur
 
     const done = await api().get(`/api/v1/public/orders/${publicToken}`).expect(200);
     expect(done.body).toMatchObject({
@@ -217,12 +220,12 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
       canCancel: false,
     });
     expect(done.body.completedAt).toBeTruthy();
-    const after = await staff.as(api().get('/api/v1/processing')).expect(200);
+    const after = await admin.as(api().get('/api/v1/processing')).expect(200);
     expect(ids(after.body, 'processing')).not.toContain(saved.id);
     expect(ids(after.body, 'done')).toContain(saved.id);
 
     // Admin boleh mengembalikan ke Diproses (koreksi).
-    await step('PROCESSING', admin).expect(200);
+    await step('PROCESSING').expect(200);
     const row = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken } });
     expect(row).toMatchObject({ fulfillmentStatus: 'PROCESSING', completedAt: null });
   });

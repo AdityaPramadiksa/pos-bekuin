@@ -9,12 +9,13 @@ Spesifikasi lengkap ada di [PRD.md](PRD.md).
 **Staff (POS)**
 - Layar order cepat per kategori Frozen / Siap Makan, keranjang tersimpan walau HP mati, tanggal kirim (hari ini/besok/pre-order)
 - Tempel pesan WhatsApp → otomatis jadi banyak order (parser dengan koreksi ejaan)
-- Riwayat order sendiri + notifikasi saat order disetujui/ditolak, halaman Diproses
+- Riwayat order sendiri + notifikasi saat order disetujui/ditolak, pantau order miliknya di halaman Diproses
 
 **Admin**
-- Approval = order masuk (bunyi + badge): koreksi item, diskon, bayar Cash (kembalian) / QRIS / Transfer atau **bayar nanti (COD)**, cetak struk, proses massal
+- Approval = order masuk (bunyi + badge): cek **foto bukti bayar** pelanggan (wajib untuk QRIS/Transfer) + pembanding uang masuk DANA, koreksi item, diskon, bayar Cash (kembalian) / QRIS / Transfer atau **bayar nanti (COD)**, cetak struk, proses massal
 - **Diproses:** rangkuman total item yang harus disiapkan + daftar per pelanggan (label, tagihan), tombol Selesai → Dikirim / Siap diambil / Selesai, "Sudah dibayar" untuk COD
-- **QRIS otomatis:** notifikasi DANA di HP admin (MacroDroid) → order QRIS yang nominalnya cocok langsung diproses, bunyi + struk tercetak otomatis
+- **Cek uang masuk DANA:** notifikasi DANA di HP admin (MacroDroid) dicatat dan tampil di samping bukti bayar saat approve (deteksi SS editan)
+- **Rekening Bank:** rekening tujuan Transfer yang tampil ke pelanggan
 - Menu & harga, meja & QR, pengguna, metode bayar, pengaturan toko & jam buka
 - Bahan baku, resep bertingkat, **HPP & margin otomatis**; stok masuk, produksi, opname, waste
 - Rekap produksi pre-order (daftar belanja, adonan per batch), data pelanggan
@@ -22,8 +23,8 @@ Spesifikasi lengkap ada di [PRD.md](PRD.md).
 - **Laporan:** penjualan, laba rugi, laba per produk, produk terlaris, arus kas, mutasi stok, shift, layanan QR, rekap harian (cetak 58mm), export Excel/CSV, grafik 7 hari di dashboard
 
 **Pelanggan (tanpa akun)**
-- Scan QR di meja → pesan → bayar QRIS (nominal otomatis, langsung diproses begitu uang masuk) atau cash → lacak status realtime sampai pesanan siap
-- **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/COD
+- Self-order QR meja (sementara dinonaktifkan)
+- **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/Transfer (unggah bukti bayar) atau COD, lacak status & **riwayat pesanan**
 
 ## Tampilan
 

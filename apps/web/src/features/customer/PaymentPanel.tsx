@@ -53,13 +53,6 @@ export function PaymentPanel({
           <Copy className="size-4" />
         </button>
       </div>
-      {p.uniqueCode ? (
-        <p className="text-xs text-stone-500">
-          {formatRupiah(o.total)} + kode unik {formatRupiah(p.uniqueCode)} agar pembayaranmu
-          langsung dikenali kasir.
-        </p>
-      ) : null}
-
       {p.type === 'QRIS' &&
         (p.qrisPayload ? (
           <>
@@ -96,10 +89,26 @@ export function PaymentPanel({
         ))}
 
       {p.type === 'TRANSFER' && (
-        <div className="rounded-xl bg-stone-50 p-3 text-left text-sm">
-          <p className="font-semibold">{p.methodName}</p>
-          {p.accountInfo ? (
-            <div className="flex items-center justify-between gap-2">
+        <div className="space-y-2 text-left text-sm">
+          <p className="text-center text-stone-600">Transfer ke salah satu rekening berikut:</p>
+          {p.bankAccounts.length > 0 ? (
+            p.bankAccounts.map((b) => (
+              <div
+                key={`${b.bankName}-${b.accountNumber}`}
+                className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-stone-500 uppercase">{b.bankName}</p>
+                  <p className="text-lg font-bold tracking-wide tabular-nums">{b.accountNumber}</p>
+                  <p className="text-xs text-stone-600">a.n. {b.accountName}</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => copy(b.accountNumber)}>
+                  <Copy className="size-4" /> Salin
+                </Button>
+              </div>
+            ))
+          ) : p.accountInfo ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl bg-stone-50 p-3">
               <span>{p.accountInfo}</span>
               <button
                 aria-label="Salin nomor rekening"
@@ -110,23 +119,19 @@ export function PaymentPanel({
               </button>
             </div>
           ) : (
-            <p className="text-stone-600">Tanyakan nomor rekening ke kasir.</p>
+            <p className="rounded-xl bg-stone-50 p-3 text-stone-600">
+              Tanyakan nomor rekening ke toko.
+            </p>
           )}
         </div>
       )}
-
-      <p className="text-xs text-stone-500">
-        {p.type === 'QRIS'
-          ? 'Bayar sesuai nominal (termasuk kode unik) supaya pesanan langsung diproses otomatis begitu uang masuk. Status di halaman ini berubah sendiri.'
-          : 'Setelah pembayaran masuk, kasir mengonfirmasi dan status di halaman ini berubah otomatis.'}
-      </p>
 
       {o.canUploadProof && <ProofUpload order={o} uploading={uploading} onUpload={onUpload} />}
     </section>
   );
 }
 
-/** Bukti bayar hanya perlu bila sudah bayar tapi belum dikonfirmasi. */
+/** QRIS/Transfer: pelanggan wajib mengunggah bukti bayar; admin mengeceknya sebelum memproses. */
 function ProofUpload({
   order: o,
   uploading,
@@ -137,16 +142,26 @@ function ProofUpload({
   onUpload: (file: File) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
-  const button = (
-    <>
+  return (
+    <div className="space-y-2 border-t border-stone-100 pt-3">
+      {o.hasPaymentProof ? (
+        <p className="flex items-center justify-center gap-1 text-sm text-green-700">
+          <CheckCircle2 className="size-4" /> Bukti bayar terkirim. Admin sedang mengecek.
+        </p>
+      ) : (
+        <p className="rounded-xl bg-amber-50 p-3 text-left text-sm text-amber-900">
+          <b>Wajib:</b> setelah bayar, unggah screenshot bukti bayar. Pesanan baru diproses setelah
+          admin mengecek uangnya masuk.
+        </p>
+      )}
       <Button
-        variant="outline"
+        variant={o.hasPaymentProof ? 'outline' : 'primary'}
         className="w-full"
         loading={uploading}
         onClick={() => input.current?.click()}
       >
         <ImageUp className="size-4" />{' '}
-        {o.hasPaymentProof ? 'Kirim ulang bukti bayar' : 'Kirim bukti bayar'}
+        {o.hasPaymentProof ? 'Ganti bukti bayar' : 'Unggah bukti bayar'}
       </Button>
       <input
         ref={input}
@@ -159,27 +174,6 @@ function ProofUpload({
           e.target.value = '';
         }}
       />
-    </>
-  );
-  if (o.hasPaymentProof) {
-    return (
-      <div className="space-y-2 border-t border-stone-100 pt-3">
-        <p className="flex items-center justify-center gap-1 text-sm text-green-700">
-          <CheckCircle2 className="size-4" /> Bukti bayar terkirim
-        </p>
-        {button}
-      </div>
-    );
-  }
-  return (
-    <details className="border-t border-stone-100 pt-3 text-left">
-      <summary className="cursor-pointer text-center text-sm font-medium text-stone-600">
-        Sudah bayar tapi belum dikonfirmasi?
-      </summary>
-      <p className="my-2 text-sm text-stone-600">
-        Kirim screenshot bukti bayar supaya kasir bisa mengecek.
-      </p>
-      {button}
-    </details>
+    </div>
   );
 }

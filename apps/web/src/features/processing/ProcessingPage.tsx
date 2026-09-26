@@ -91,9 +91,11 @@ export function ProcessingPage() {
       <PageHeader
         title="Diproses"
         subtitle={
-          processing.length
-            ? `${processing.length} order harus disiapkan`
-            : 'Order yang sudah disetujui'
+          !isAdmin
+            ? 'Pantau order yang kamu input (diatur admin)'
+            : processing.length
+              ? `${processing.length} order harus disiapkan`
+              : 'Order yang sudah disetujui'
         }
       />
       <div className="mx-auto max-w-3xl space-y-3 p-4 md:p-6">
@@ -133,7 +135,11 @@ export function ProcessingPage() {
         ) : processing.length === 0 ? (
           <EmptyState
             title="Tidak ada order yang diproses"
-            description="Order yang disetujui (atau QRIS yang masuk otomatis) muncul di sini."
+            description={
+              isAdmin
+                ? 'Order yang sudah disetujui muncul di sini.'
+                : 'Order yang kamu input muncul di sini setelah disetujui admin.'
+            }
           />
         ) : (
           <>
@@ -170,20 +176,22 @@ export function ProcessingPage() {
                 />
                 <div className="flex items-center justify-between pt-2">
                   <h2 className="font-semibold">Per pelanggan ({shown.length})</h2>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        for (const o of shown) await printBytes(labelBytes(o, storeName));
-                        toast.success(`${shown.length} label dicetak`);
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : 'Gagal mencetak');
-                      }
-                    }}
-                  >
-                    <Tag className="size-4" /> Cetak semua label
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          for (const o of shown) await printBytes(labelBytes(o, storeName));
+                          toast.success(`${shown.length} label dicetak`);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : 'Gagal mencetak');
+                        }
+                      }}
+                    >
+                      <Tag className="size-4" /> Cetak semua label
+                    </Button>
+                  )}
                 </div>
                 <ul className="space-y-3">
                   {shown.map((o) => (
@@ -407,33 +415,42 @@ function ProcessingCard({
         <p className="mt-2 rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-900">{o.note}</p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center gap-1">
-        <Button size="sm" variant="ghost" onClick={onLabel}>
-          <Tag className="size-4" /> Label
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onReceipt}>
-          <Receipt className="size-4" /> Struk
-        </Button>
-        {o.customerName && (
-          <Button size="sm" variant="ghost" onClick={onInvoice}>
-            <Copy className="size-4" /> Tagihan
-          </Button>
-        )}
-      </div>
-      <div className="mt-2 flex gap-2">
-        {isAdmin && unpaid && (
-          <Button variant="outline" className="flex-1 basis-0" onClick={onPay}>
-            <Banknote className="size-4" /> Sudah dibayar
-          </Button>
-        )}
-        <Button
-          className="flex-1 basis-0"
-          loading={move.isPending}
-          onClick={() => move.mutate('DONE')}
-        >
-          <CheckCircle2 className="size-4" /> {completeActionLabel(o)}
-        </Button>
-      </div>
+      {!isAdmin ? (
+        <p className="mt-3 rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+          Sedang diproses admin. Status berubah otomatis saat admin menandai{' '}
+          {completeActionLabel(o).replace('Tandai ', '').toLowerCase()}.
+        </p>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={onLabel}>
+              <Tag className="size-4" /> Label
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onReceipt}>
+              <Receipt className="size-4" /> Struk
+            </Button>
+            {o.customerName && (
+              <Button size="sm" variant="ghost" onClick={onInvoice}>
+                <Copy className="size-4" /> Tagihan
+              </Button>
+            )}
+          </div>
+          <div className="mt-2 flex gap-2">
+            {isAdmin && unpaid && (
+              <Button variant="outline" className="flex-1 basis-0" onClick={onPay}>
+                <Banknote className="size-4" /> Sudah dibayar
+              </Button>
+            )}
+            <Button
+              className="flex-1 basis-0"
+              loading={move.isPending}
+              onClick={() => move.mutate('DONE')}
+            >
+              <CheckCircle2 className="size-4" /> {completeActionLabel(o)}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

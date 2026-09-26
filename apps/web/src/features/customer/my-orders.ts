@@ -1,4 +1,4 @@
-/** Riwayat pesanan pelanggan di HP ini (localStorage), untuk tautan "Pesanan saya" & "Pesan lagi". */
+/** Riwayat pesanan pelanggan di HP ini (localStorage): halaman Riwayat pesanan & "Pesan lagi". */
 export interface MyOrder {
   publicToken: string;
   orderNo: string;
@@ -11,11 +11,14 @@ export interface MyOrder {
 }
 
 const KEY = 'bekuin-my-orders';
+/** Riwayat disimpan 90 hari, maksimal 50 pesanan terakhir. */
+const KEEP_MS = 90 * 24 * 60 * 60 * 1000;
+const MAX_ORDERS = 50;
 
 export function loadMyOrders(): MyOrder[] {
   try {
     const list = JSON.parse(localStorage.getItem(KEY) ?? '[]') as MyOrder[];
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const cutoff = Date.now() - KEEP_MS;
     return list.filter((o) => new Date(o.createdAt).getTime() > cutoff);
   } catch {
     return [];
@@ -24,7 +27,7 @@ export function loadMyOrders(): MyOrder[] {
 
 export function saveMyOrder(order: MyOrder) {
   try {
-    localStorage.setItem(KEY, JSON.stringify([order, ...loadMyOrders()].slice(0, 20)));
+    localStorage.setItem(KEY, JSON.stringify([order, ...loadMyOrders()].slice(0, MAX_ORDERS)));
   } catch {
     // mode privat / penyimpanan penuh: abaikan
   }

@@ -31,13 +31,24 @@ PENDING → (admin setujui / QRIS terdeteksi) PAID + PROCESSING ("Diproses") →
 
 ## Halaman Diproses (pengganti antrian dapur & packing)
 - `GET /processing`: order PAID + PROCESSING (semua tanggal kirim) dan yang DONE hari ini. Rangkuman item dihitung `summarizeProcessing` (shared).
-- `PATCH /orders/:id/fulfillment`: PROCESSING → DONE (staff & admin, isi `completedAt`); DONE → PROCESSING hanya admin.
+- `PATCH /orders/:id/fulfillment` (`@Roles('ADMIN')`): PROCESSING ⇄ DONE, isi/hapus `completedAt`. Staff hanya memantau; `GET /processing` untuk staff hanya berisi order yang dia buat (`createdById`).
 - `POST /orders/:id/mark-paid` (admin): order disetujui yang `paidAt` null → lunas; cash wajib shift terbuka dan masuk shift saat itu.
 
-## QRIS otomatis (notifikasi DANA lewat MacroDroid)
-- `POST /public/payment-notifications/:key` (`@Public` + throttle 30/menit). Kunci = `settings.paymentWebhookKey` (acak, rotate lewat `POST /payment-notifications/rotate-key`, hanya admin yang bisa melihat di `GET /payment-notifications/setup`).
-- `parsePaymentNotification` (fungsi murni, teruji): hanya uang masuk; uang keluar/top up/cashback diabaikan. Nominal harus sama persis dengan `total + uniqueCode` tepat satu order PENDING ber-QRIS (3 hari terakhir); lebih dari satu → AMBIGUOUS, tidak disetujui.
-- Setuju otomatis memakai `approveInTx(..., userId = null, { allowNegativeStock: true })` di bawah advisory lock 7_240_003; duplikat 10 menit diabaikan. Semua notifikasi dicatat di `payment_notifications`. Emit `order.autoApproved` ke admin (bunyi + cetak struk bila printer terhubung).
+## Cek uang masuk DANA (MacroDroid) — alat bantu, bukan approve otomatis (v2.4)
+- `POST /public/payment-notifications/:key` (`@Public` + throttle 30/menit) hanya **mencatat**: uang masuk → `RECEIVED`, selain itu/duplikat < 2 menit → `IGNORED`. Kunci = `settings.paymentWebhookKey` (rotate `POST /payment-notifications/rotate-key`).
+- `GET /payment-notifications/for-order/:orderId` (admin): uang masuk dengan nominal = tagihan, sejak order dibuat (toleransi 10 menit), yang belum dipakai order lain → ditampilkan di dialog approve di samping bukti bayar.
+- Saat approve order QRIS, notifikasi `RECEIVED` tertua yang cocok ditautkan (`orderId`, `MATCHED`) agar satu pembayaran tidak bisa jadi bukti dua order.
+
+## Bukti bayar wajib (v2.4)
+- QRIS tanpa kode unik: nominal = total (order lama tetap memakai `uniqueCode`).
+- Order pelanggan (`QR_TABLE`/`ONLINE`) QRIS/Transfer tanpa `paymentProofUrl` hanya bisa di-approve dengan `confirmWithoutProof: true` (admin menyatakan sudah mengecek uang masuk). Approve massal menolaknya.
+- Transfer tampil ke pelanggan hanya bila ada `bank_accounts` aktif; `GET /public/orders/:publicToken` menyertakan `payment.bankAccounts`.
+
+## Riwayat pesanan pelanggan
+- `POST /public/orders/lookup { tokens }` (maks 50, throttle 30/menit) → ringkasan pesanan `QR_TABLE`/`ONLINE` untuk token yang disimpan di HP pelanggan (localStorage 90 hari). Tanpa No. WA/data pribadi di respons.
+
+## QR meja
+- Self-order QR meja dinonaktifkan sejak v2.4 (`settings.qrOrderingEnabled = false`, menu Meja & QR disembunyikan). Endpoint tetap ada dan teruji; aktifkan lagi lewat setting bila dibutuhkan.
 
 ## QR
 - URL QR: `${PUBLIC_WEB_URL}/m/${qrToken}`. Rotate = token baru, token lama langsung 404.

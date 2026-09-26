@@ -3,10 +3,11 @@ import {
   ORDER_STATUS_LABEL,
   type OrderView,
   type PaymentMethodView,
+  type PaymentNotificationView,
   qrisWithAmount,
   quickCashAmounts,
 } from '@bekuin/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Minus, Plus, Printer } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -18,7 +19,7 @@ import { Link } from 'react-router-dom';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { DeliveryInfo } from '@/features/orders/DeliveryInfo';
 import { SourceBadge } from '@/features/orders/order-ui';
-import { categoryLabel } from '@/features/orders/order-format';
+import { categoryLabel, formatDateTime } from '@/features/orders/order-format';
 import { isPrinterConnected, printReceipt } from '@/features/printer/receipt';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useCurrentShift, useOrder, usePaymentMethods, useSettings } from '@/lib/queries';
@@ -127,17 +128,22 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   const itemCount = Object.values(qty).filter((q) => q > 0).length;
   // Cash masuk laci → wajib ada shift kasir terbuka (dicek juga di server).
   const noShift = isCash && !payLater && shift.isSuccess && !shift.data;
-  // Nominal yang harus masuk untuk QRIS pelanggan (total + kode unik).
+  // Order lama (sebelum v2.4) membawa kode unik: nominal yang masuk = total + kode.
   const expectedQris =
     method?.type === 'QRIS' && order.uniqueCode && method.id === order.paymentMethod?.id
       ? order.total + order.uniqueCode
       : null;
   const qrisForCounter = counterQris(settings.data?.qrisPayload ?? null, total);
+  // Order pelanggan QRIS/Transfer wajib bukti bayar; tanpa bukti admin harus menyatakan sudah cek.
+  const needsProof =
+    isCustomerOrder && !!method && method.type !== 'CASH' && !payLater && !order.paymentProofUrl;
+  const [confirmNoProof, setConfirmNoProof] = useState(false);
   const invalid =
     !method ||
     itemCount === 0 ||
     discount > subtotal ||
     noShift ||
+    (needsProof && !confirmNoProof) ||
     (isCash && !payLater && (paid === '' || paid < total));
 
   const refresh = () => {
@@ -158,6 +164,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           paymentMethodId: selectedMethodId,
           paidAmount: isCash && !payLater ? paid : undefined,
           payLater: payLater || undefined,
+          confirmWithoutProof: needsProof ? true : undefined,
           discount,
           paymentRef: paymentRef.trim() || null,
           items: items.length ? items : undefined,
@@ -406,7 +413,8 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           className="block rounded-xl bg-green-50 p-3"
         >
           <p className="mb-2 text-xs font-semibold text-green-900">
-            Bukti bayar dari pelanggan — cocokkan dengan mutasi QRIS/rekening sebelum approve
+            Bukti bayar dari pelanggan — cek nominal, tanggal, dan jam dengan mutasi DANA/rekening
+            sebelum approve (ketuk untuk memperbesar)
           </p>
           <img
             src={assetUrl(order.paymentProofUrl)}
@@ -414,6 +422,21 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
             className="max-h-72 rounded-lg border bg-white"
           />
         </a>
+      )}
+      {method?.type === 'QRIS' && !payLater && <DanaMatches order={order} />}
+      {needsProof && (
+        <label className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4"
+            checked={confirmNoProof}
+            onChange={(e) => setConfirmNoProof(e.target.checked)}
+          />
+          <span>
+            <b>Pelanggan belum mengunggah bukti bayar.</b> Centang bila kamu sudah mengecek uangnya
+            benar-benar masuk (misal bukti dikirim lewat WhatsApp).
+          </span>
+        </label>
       )}
       {/* Metode bayar: order pelanggan memakai pilihannya, admin cukup mengecek. */}
       {isCustomerOrder && method && !changingMethod ? (
@@ -484,8 +507,8 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           <p>Cek notifikasi DANA / mutasi QRIS, harus masuk:</p>
           <p className="text-2xl font-bold">{formatRupiah(expectedQris)}</p>
           <p className="text-xs">
-            Total {formatRupiah(order.total)} + kode unik {formatRupiah(order.uniqueCode ?? 0)}.
-            Bila notifikasi DANA sudah tersambung, order ini diproses otomatis begitu uang masuk.
+            Total {formatRupiah(order.total)} + kode unik {formatRupiah(order.uniqueCode ?? 0)}{' '}
+            (order lama).
           </p>
         </div>
       )}
@@ -574,6 +597,42 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           <Printer className="size-4" /> Proses & cetak struk
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Pembanding bukti bayar QRIS: uang masuk DANA (dicatat lewat MacroDroid di HP admin) yang
+ * nominalnya sama dengan tagihan, sejak order dibuat, dan belum dipakai order lain.
+ */
+function DanaMatches({ order }: { order: OrderView }) {
+  const matches = useQuery({
+    queryKey: ['payment-matches', order.id],
+    queryFn: async () =>
+      (await api.get<PaymentNotificationView[]>(`/payment-notifications/for-order/${order.id}`))
+        .data,
+  });
+  if (matches.isPending || matches.isError) return null;
+  const amount = formatRupiah(order.total + (order.uniqueCode ?? 0));
+  if (matches.data.length === 0) {
+    return (
+      <div className="rounded-xl bg-stone-50 p-3 text-sm text-stone-600">
+        Belum ada notifikasi DANA uang masuk <b>{amount}</b> sejak order dibuat. Cek aplikasi DANA
+        sebelum approve (catatan otomatis ini hanya ada bila MacroDroid terpasang di HP admin).
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1 rounded-xl bg-green-50 p-3 text-sm text-green-900">
+      {matches.data.map((n) => (
+        <p key={n.id} className="flex items-center gap-1.5">
+          <CheckCircle2 className="size-4 shrink-0" />
+          <span>
+            Uang masuk DANA <b>{formatRupiah(n.amount ?? 0)}</b> · {formatDateTime(n.receivedAt)}
+            {n.order?.id === order.id ? ' (dipakai order ini)' : ''}
+          </span>
+        </p>
+      ))}
     </div>
   );
 }

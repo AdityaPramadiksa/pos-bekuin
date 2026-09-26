@@ -51,6 +51,16 @@ export function OrderCard({
                 <ImageIcon className="size-3" /> Bukti bayar
               </span>
             )}
+            {/* Pelanggan QRIS/Transfer wajib unggah bukti; tanpa bukti jangan buru-buru approve. */}
+            {!order.paymentProofUrl &&
+              order.status === 'PENDING' &&
+              (order.source === 'ONLINE' || order.source === 'QR_TABLE') &&
+              order.paymentMethod &&
+              order.paymentMethod.type !== 'CASH' && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                  Belum ada bukti
+                </span>
+              )}
           </div>
           <p className="text-xs text-stone-500">
             {order.orderNo} ·{' '}

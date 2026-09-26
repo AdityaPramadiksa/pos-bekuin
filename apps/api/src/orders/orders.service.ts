@@ -60,6 +60,9 @@ export interface CreateOrderInput {
 
 type Tx = Prisma.TransactionClient;
 
+/** Notifikasi uang masuk boleh sedikit lebih awal dari jam order dibuat (jam HP tidak persis). */
+export const PAYMENT_NOTIFICATION_SLACK_MS = 10 * 60_000;
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -276,25 +279,18 @@ export class OrdersService {
     return this.afterWrite(id, user, 'order.updated');
   }
 
-  /**
-   * Setujui order → Diproses. `userId` null = otomatis (notifikasi QRIS terdeteksi).
-   * `allowNegativeStock`: uang sudah masuk, jadi persetujuan tidak boleh gagal karena stok.
-   */
-  async approveInTx(
-    tx: Tx,
-    id: string,
-    dto: ApproveOrderDto,
-    userId: string | null,
-    opts: { allowNegativeStock?: boolean; logReason?: string } = {},
-  ) {
+  /** Setujui order → Diproses (satu transaksi: stok, HPP, pembayaran, log). */
+  async approveInTx(tx: Tx, id: string, dto: ApproveOrderDto, userId: string) {
     const current = await tx.order.findUniqueOrThrow({
       where: { id },
       select: {
         source: true,
         paymentMethodId: true,
+        paymentProofUrl: true,
         uniqueCode: true,
         deliveryFee: true,
         deliveryDate: true,
+        createdAt: true,
         items: { select: { id: true, qty: true } },
       },
     });
@@ -340,6 +336,19 @@ export class OrdersService {
     if (!methodId) throw new BadRequestException('Pilih metode bayar');
     const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
+    // Pelanggan QRIS/Transfer wajib mengirim bukti bayar; tanpa bukti admin harus menyatakan
+    // sudah mengecek uangnya masuk (mis. bukti dikirim lewat WhatsApp).
+    if (
+      isCustomerSource(current.source) &&
+      method.type !== 'CASH' &&
+      !dto.payLater &&
+      !current.paymentProofUrl &&
+      !dto.confirmWithoutProof
+    ) {
+      throw new BadRequestException(
+        'Pelanggan belum mengunggah bukti bayar. Cek dulu uangnya sudah masuk, lalu approve dengan konfirmasi.',
+      );
+    }
     // Bayar nanti (COD / bayar saat ambil): order tetap diproses, uang dicatat saat diterima.
     const payLater = dto.payLater === true;
     const payment = payLater
@@ -355,8 +364,7 @@ export class OrdersService {
     // Pre-order untuk hari lain boleh membuat stok minus: barangnya baru diproduksi sebelum dikirim.
     const settings = await tx.setting.findUnique({ where: { id: 'default' } });
     const isPreorder = current.deliveryDate > dateOnly(todayKey());
-    const block =
-      (settings?.blockApproveOnLowStock ?? true) && !opts.allowNegativeStock && !isPreorder;
+    const block = (settings?.blockApproveOnLowStock ?? true) && !isPreorder;
     const changes: StockChange[] = [];
     for (const [productId, pcs] of pcsByProduct(
       items.map((i) => ({ ...i, productId: i.variant.productId })),
@@ -417,6 +425,11 @@ export class OrdersService {
         cashSessionId: payment.cashSessionId,
       },
     });
+    // Tandai notifikasi DANA "uang masuk" yang nominalnya sama sebagai sudah dipakai order ini,
+    // supaya satu pembayaran asli tidak bisa dipakai sebagai bukti untuk order lain.
+    if (method.type === 'QRIS' && !payLater) {
+      await this.claimPaymentNotification(tx, id, payment.paidAmount ?? total, current.createdAt);
+    }
     await tx.orderLog.create({
       data: {
         orderId: id,
@@ -424,9 +437,29 @@ export class OrdersService {
         fromStatus: 'PENDING',
         toStatus: 'PAID',
         userId,
-        reason: opts.logReason ?? (payLater ? `${method.name} · belum dibayar` : method.name),
+        reason: payLater ? `${method.name} · belum dibayar` : method.name,
       },
     });
+  }
+
+  /** Notifikasi uang masuk (DANA) tertua yang cocok nominalnya & belum dipakai → milik order ini. */
+  private async claimPaymentNotification(tx: Tx, orderId: string, amount: number, since: Date) {
+    const note = await tx.paymentNotification.findFirst({
+      where: {
+        result: 'RECEIVED',
+        orderId: null,
+        amount,
+        receivedAt: { gte: new Date(since.getTime() - PAYMENT_NOTIFICATION_SLACK_MS) },
+      },
+      orderBy: { receivedAt: 'asc' },
+      select: { id: true },
+    });
+    if (note) {
+      await tx.paymentNotification.update({
+        where: { id: note.id },
+        data: { orderId, result: 'MATCHED' },
+      });
+    }
   }
 
   /**

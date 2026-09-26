@@ -15,7 +15,11 @@ import { Throttle } from '@nestjs/throttler';
 import { MAX_UPLOAD_BYTES } from '@bekuin/shared';
 import { Public } from '../auth/decorators/public.decorator';
 import { PublicThrottlerGuard } from '../common/public-throttler.guard';
-import { CreateOnlineOrderDto, CreatePublicOrderDto } from './dto/public-order.dto';
+import {
+  CreateOnlineOrderDto,
+  CreatePublicOrderDto,
+  LookupOrdersDto,
+} from './dto/public-order.dto';
 import { PublicService, QR_ORDER_ATTEMPTS_PER_10_MIN } from './public.service';
 
 /** Endpoint pelanggan QR (tanpa login). Lihat .claude/skills/bekuin-qr-order. */
@@ -50,6 +54,14 @@ export class PublicController {
   @Post('online-orders')
   createOnlineOrder(@Body() dto: CreateOnlineOrderDto) {
     return this.publicService.createOnlineOrder(dto);
+  }
+
+  /** Riwayat pesanan pelanggan (token dari HP-nya sendiri). */
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('orders/lookup')
+  @HttpCode(200)
+  lookup(@Body() dto: LookupOrdersDto) {
+    return this.publicService.lookup(dto.tokens);
   }
 
   @Throttle({ default: { limit: 120, ttl: 60_000 } })

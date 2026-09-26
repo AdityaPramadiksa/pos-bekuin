@@ -1,9 +1,10 @@
 /** Notifikasi uang masuk e-wallet (DANA) yang diteruskan MacroDroid dari HP admin. */
 export type PaymentNotificationResult =
-  'MATCHED' | 'UNMATCHED' | 'AMBIGUOUS' | 'IGNORED' | 'FAILED';
+  'RECEIVED' | 'MATCHED' | 'UNMATCHED' | 'AMBIGUOUS' | 'IGNORED' | 'FAILED';
 
 export const PAYMENT_NOTIFICATION_RESULT_LABEL: Record<PaymentNotificationResult, string> = {
-  MATCHED: 'Cocok, otomatis diproses',
+  RECEIVED: 'Uang masuk, belum dipakai order',
+  MATCHED: 'Dipakai untuk order',
   UNMATCHED: 'Tidak ada order yang cocok',
   AMBIGUOUS: 'Lebih dari satu order cocok',
   IGNORED: 'Diabaikan',
@@ -29,9 +30,12 @@ export interface PaymentWebhookSetup {
   notifications: PaymentNotificationView[];
 }
 
-/** Event realtime ke admin saat QRIS terdeteksi & order otomatis diproses. */
-export interface AutoApprovedEvent {
-  orderId: string;
-  orderNo: string;
-  amount: number;
+/** Rekening tujuan Transfer (admin). */
+export interface BankAccountView {
+  id: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  isActive: boolean;
+  sortOrder: number;
 }
