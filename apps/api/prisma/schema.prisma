@@ -166,7 +166,8 @@ model Setting {
   isStoreOpen            Boolean  @default(true)
   /// { "mon": ["09:00","21:00"], ... } — kosong = selalu buka selama isStoreOpen
   openingHours           Json?
-  qrOrderingEnabled      Boolean  @default(true)
+  /// Self-order QR meja (sementara dinonaktifkan sejak v2.4).
+  qrOrderingEnabled      Boolean  @default(false)
   qrMaxOrderTotal        Int      @default(1000000)
   /// Link order online: /pesan/<onlineOrderToken> (bisa diganti bila disalahgunakan).
   onlineOrderToken       String?  @unique
@@ -688,7 +689,8 @@ model PushSubscription {
 }
 
 enum PaymentNotificationResult {
-  MATCHED // cocok dengan satu order → otomatis disetujui
+  RECEIVED // uang masuk tercatat, belum dipakai untuk order mana pun (alat bantu cek bukti bayar)
+  MATCHED // dipakai sebagai bukti uang masuk untuk satu order (v2.3: disetujui otomatis)
   UNMATCHED // nominal tidak cocok dengan order QRIS mana pun
   AMBIGUOUS // lebih dari satu order dengan nominal sama
   IGNORED // bukan notifikasi uang masuk / nominal tidak terbaca / duplikat
@@ -711,4 +713,18 @@ model PaymentNotification {
 
   @@index([receivedAt])
   @@map("payment_notifications")
+}
+
+/// Rekening tujuan transfer yang ditampilkan ke pelanggan yang memilih bayar Transfer.
+model BankAccount {
+  id            String   @id @default(cuid())
+  bankName      String // "BCA", "BRI", "SeaBank"
+  accountNumber String
+  accountName   String // atas nama
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("bank_accounts")
 }

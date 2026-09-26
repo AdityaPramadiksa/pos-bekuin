@@ -60,15 +60,4 @@ describe('isAllowedPushEndpoint', () => {
     expect(isAllowedPushEndpoint('https://127.0.0.1/x')).toBe(false);
     expect(isAllowedPushEndpoint('bukan url')).toBe(false);
   });
-
-  it('QRIS terdeteksi otomatis (tanpa pelaku) → semua admin ke halaman Diproses', () => {
-    const [t] = pushPlan(
-      'order.updated',
-      order({ source: 'ONLINE', createdById: null, status: 'PAID' }),
-      null,
-    );
-    expect(t).toMatchObject({ to: 'admins', exceptUserId: null });
-    expect(t.message.title).toBe('QRIS masuk · BK-20260925-0001 diproses');
-    expect(t.message.url).toBe('/admin/diproses');
-  });
 });

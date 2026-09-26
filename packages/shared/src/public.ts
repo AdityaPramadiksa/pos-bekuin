@@ -105,14 +105,41 @@ export interface PublicOrderView {
   payment: {
     methodName: string | null;
     type: PaymentType | null;
-    /** Nominal yang harus dibayar = total + kode unik (QRIS). */
+    /** Nominal yang harus dibayar (= total). */
     amount: number;
-    uniqueCode: number | null;
     /** QRIS bernominal siap ditampilkan sebagai QR; null bila toko belum mengatur teks QRIS. */
     qrisPayload: string | null;
-    /** Info rekening untuk Transfer. */
+    /** Info rekening tambahan dari Metode Bayar (lama). */
     accountInfo: string | null;
+    /** Rekening tujuan Transfer yang diatur admin (Lainnya → Rekening Bank). */
+    bankAccounts: PublicBankAccount[];
   };
   canCancel: boolean;
+  /** QRIS/Transfer: pelanggan wajib mengunggah bukti bayar sebelum pesanan diproses. */
   canUploadProof: boolean;
+}
+
+export interface PublicBankAccount {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+}
+
+/** Ringkasan pesanan untuk halaman "Riwayat pesanan" pelanggan (dari token di HP-nya). */
+export interface PublicOrderSummary {
+  orderNo: string;
+  publicToken: string;
+  status: OrderStatus;
+  fulfillmentStatus: FulfillmentStatus;
+  total: number;
+  itemCount: number;
+  itemsSummary: string;
+  paymentMethodName: string | null;
+  isPaid: boolean;
+  hasPaymentProof: boolean;
+  /** Belum bayar/unggah bukti: pelanggan perlu tindakan. */
+  needsProof: boolean;
+  delivery: { method: DeliveryMethod; date: string } | null;
+  tableName: string | null;
+  createdAt: string;
 }

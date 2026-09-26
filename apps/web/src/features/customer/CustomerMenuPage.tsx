@@ -173,10 +173,10 @@ function Menu({ channel, data }: { channel: Channel; data: PublicMenuResponse })
         </div>
         {myOrders.length > 0 && (
           <Link
-            to={`/o/${myOrders[0].publicToken}`}
+            to="/riwayat"
             className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2 text-sm"
           >
-            <ReceiptText className="size-4" /> Lihat status pesanan {myOrders[0].orderNo}
+            <ReceiptText className="size-4" /> Riwayat pesanan saya ({myOrders.length})
           </Link>
         )}
       </header>

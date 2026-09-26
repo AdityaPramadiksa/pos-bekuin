@@ -11,6 +11,7 @@ import {
   type OpeningHours,
   type PublicMenuResponse,
   type PublicOrderCreated,
+  type PublicOrderSummary,
   type PublicOrderView,
 } from '@bekuin/shared';
 import type { DiningTable, PaymentType, Prisma, Setting } from '@prisma/client';
@@ -24,12 +25,9 @@ import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
 import type { CreateOnlineOrderDto, CreatePublicOrderDto } from './dto/public-order.dto';
 import { MAX_PENDING_PER_PHONE, normalizePhone, onlineDateWindow } from './online-order';
-import { pickUniqueCode } from './unique-code';
 
 export const MAX_PENDING_PER_TABLE = 3;
 export const QR_ORDER_ATTEMPTS_PER_10_MIN = 10;
-/** Kunci advisory saat memilih kode unik QRIS agar dua order tidak mendapat nominal sama. */
-const UNIQUE_CODE_LOCK = 7_240_002;
 
 function storeStatus(s: Setting | null): { isOpen: boolean; closedReason: string | null } {
   if (!s) return { isOpen: true, closedReason: null };
@@ -55,12 +53,27 @@ export class PublicService {
     private readonly realtime: RealtimeGateway,
   ) {}
 
-  /** Metode bayar yang aktif & ditandai "Tampil di QR pelanggan". */
-  private customerPaymentMethods() {
-    return this.prisma.paymentMethod.findMany({
-      where: { isActive: true, showToCustomer: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      select: { id: true, name: true, type: true },
+  /**
+   * Metode bayar yang aktif & ditandai "Tampil ke pelanggan". Transfer hanya muncul bila admin
+   * sudah mengisi minimal satu rekening aktif (Lainnya → Rekening Bank).
+   */
+  private async customerPaymentMethods() {
+    const [methods, accounts] = await Promise.all([
+      this.prisma.paymentMethod.findMany({
+        where: { isActive: true, showToCustomer: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        select: { id: true, name: true, type: true },
+      }),
+      this.prisma.bankAccount.count({ where: { isActive: true } }),
+    ]);
+    return methods.filter((m) => m.type !== 'TRANSFER' || accounts > 0);
+  }
+
+  private activeBankAccounts() {
+    return this.prisma.bankAccount.findMany({
+      where: { isActive: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      select: { bankName: true, accountNumber: true, accountName: true },
     });
   }
 
@@ -195,7 +208,7 @@ export class PublicService {
           `Total pesanan melebihi batas Rp${max.toLocaleString('id-ID')}. Silakan pesan di kasir.`,
         );
       }
-      await this.assignPayment(tx, id, method, order.total);
+      await this.assignPayment(tx, id, method);
       return id;
     });
 
@@ -269,7 +282,7 @@ export class PublicService {
           total,
         },
       });
-      await this.assignPayment(tx, id, method, total);
+      await this.assignPayment(tx, id, method);
       return id;
     });
 
@@ -286,28 +299,15 @@ export class PublicService {
     return settings;
   }
 
-  /**
-   * Simpan cara bayar pilihan pelanggan; admin tinggal approve (PRD 5.5). QRIS mendapat kode
-   * unik agar nominal (total + kode) tidak sama dengan order QRIS lain yang masih menunggu.
-   */
+  /** Simpan cara bayar pilihan pelanggan; admin mengecek bukti bayar lalu approve (PRD 5.5). */
   private async assignPayment(
     tx: Prisma.TransactionClient,
     orderId: string,
     method: { id: string; type: PaymentType },
-    total: number,
   ) {
-    let uniqueCode: number | null = null;
-    if (method.type === 'QRIS') {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${UNIQUE_CODE_LOCK})`;
-      const others = await tx.order.findMany({
-        where: { status: 'PENDING', uniqueCode: { not: null } },
-        select: { total: true, uniqueCode: true },
-      });
-      uniqueCode = pickUniqueCode(total, new Set(others.map((o) => o.total + (o.uniqueCode ?? 0))));
-    }
     await tx.order.update({
       where: { id: orderId },
-      data: { paymentMethodId: method.id, payAtCashier: method.type === 'CASH', uniqueCode },
+      data: { paymentMethodId: method.id, payAtCashier: method.type === 'CASH' },
     });
   }
 
@@ -325,7 +325,9 @@ export class PublicService {
     if (!order) throw new NotFoundException('Pesanan tidak ditemukan');
     const pending = order.status === 'PENDING';
     const type = order.paymentMethod?.type ?? null;
+    // Pesanan lama (sebelum v2.4) masih membawa kode unik; pesanan baru bayar pas sesuai total.
     const amount = order.total + (type === 'QRIS' ? (order.uniqueCode ?? 0) : 0);
+    const bankAccounts = type === 'TRANSFER' && pending ? await this.activeBankAccounts() : [];
     let qrisPayload: string | null = null;
     if (pending && type === 'QRIS' && settings?.qrisPayload) {
       try {
@@ -379,12 +381,47 @@ export class PublicService {
         methodName: order.paymentMethod?.name ?? null,
         type,
         amount,
-        uniqueCode: type === 'QRIS' ? order.uniqueCode : null,
         qrisPayload,
         accountInfo: type === 'TRANSFER' ? (order.paymentMethod?.accountInfo ?? null) : null,
+        bankAccounts,
       },
       canUploadProof: pending && type !== 'CASH' && isCustomerSource(order.source),
     };
+  }
+
+  /** Riwayat pesanan pelanggan: hanya token yang disimpan di HP-nya sendiri (tanpa akun). */
+  async lookup(tokens: string[]): Promise<PublicOrderSummary[]> {
+    const orders = await this.prisma.order.findMany({
+      where: { publicToken: { in: [...new Set(tokens)] }, source: { in: ['QR_TABLE', 'ONLINE'] } },
+      include: {
+        items: { select: { productName: true, packSize: true, qty: true } },
+        paymentMethod: { select: { name: true, type: true } },
+        table: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return orders.map((o) => ({
+      orderNo: o.orderNo,
+      publicToken: o.publicToken,
+      status: o.status,
+      fulfillmentStatus: o.fulfillmentStatus,
+      total: o.total,
+      itemCount: o.items.reduce((n, i) => n + i.qty, 0),
+      itemsSummary: o.items.map((i) => `${i.productName} isi ${i.packSize} ×${i.qty}`).join(', '),
+      paymentMethodName: o.paymentMethod?.name ?? null,
+      isPaid: !!o.paidAt,
+      hasPaymentProof: !!o.paymentProofUrl,
+      needsProof:
+        o.status === 'PENDING' &&
+        !o.paymentProofUrl &&
+        !!o.paymentMethod &&
+        o.paymentMethod.type !== 'CASH',
+      delivery: o.deliveryMethod
+        ? { method: o.deliveryMethod, date: o.deliveryDate.toISOString().slice(0, 10) }
+        : null,
+      tableName: o.table?.name ?? null,
+      createdAt: o.createdAt.toISOString(),
+    }));
   }
 
   async uploadProof(

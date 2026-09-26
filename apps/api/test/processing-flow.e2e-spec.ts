@@ -1,6 +1,7 @@
 /**
- * Revisi alur order: disetujui → Diproses → Selesai/Dikirim/Siap diambil, COD "belum dibayar"
- * sampai uang diterima, dan QRIS otomatis disetujui dari notifikasi DANA (MacroDroid).
+ * Alur order: disetujui → Diproses → Selesai/Dikirim/Siap diambil (hanya admin; staff memantau
+ * order miliknya), COD "belum dibayar" sampai uang diterima, dan notifikasi DANA (MacroDroid)
+ * sebagai alat bantu cek bukti bayar (v2.4: tidak lagi menyetujui otomatis).
  */
 import { createTestContext } from './helpers';
 
@@ -17,6 +18,7 @@ describe('Alur Diproses, COD, dan notifikasi QRIS (e2e)', () => {
   let originalSettings: Record<string, unknown>;
   let originalMethods: { id: string; showToCustomer: boolean; isActive: boolean }[];
   const created: string[] = []; // publicToken
+  const staffOrderIds: string[] = [];
   const api = () => ctx.api();
   const wita = (offset = 0) =>
     new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Makassar' }).format(
@@ -107,7 +109,9 @@ describe('Alur Diproses, COD, dan notifikasi QRIS (e2e)', () => {
       where: { OR: [{ orderId: { in: orders.map((o) => o.id) } }, { text: { contains: 'e2e' } }] },
     });
     await p.stockMovement.deleteMany({ where: { productId } });
-    await p.order.deleteMany({ where: { publicToken: { in: created } } });
+    await p.order.deleteMany({
+      where: { OR: [{ publicToken: { in: created } }, { id: { in: staffOrderIds } }] },
+    });
     await p.customer.deleteMany({ where: { name: { startsWith: 'e2e' } } });
     await p.productVariant.deleteMany({ where: { productId } });
     await p.product.delete({ where: { id: productId } });
@@ -158,15 +162,48 @@ describe('Alur Diproses, COD, dan notifikasi QRIS (e2e)', () => {
     expect(after.cashSessionId).not.toBeNull(); // cash masuk shift yang terbuka
     await markPaid({ paidAmount: 100000 }).expect(400); // sudah lunas
 
-    // Diantar → Selesai = Dikirim; muncul di daftar selesai hari ini.
-    const list = await staff.as(api().get('/api/v1/processing')).expect(200);
+    // Diantar → Selesai = Dikirim (hanya admin); muncul di daftar selesai hari ini.
+    const list = await admin.as(api().get('/api/v1/processing')).expect(200);
     expect(list.body.processing.map((o: { id: string }) => o.id)).toContain(order.id);
-    await staff
-      .as(api().patch(`/api/v1/orders/${order.id}/fulfillment`))
-      .send({ status: 'DONE' })
-      .expect(200);
-    const done = await staff.as(api().get('/api/v1/processing')).expect(200);
+    const fulfil = (as: typeof admin) =>
+      as.as(api().patch(`/api/v1/orders/${order.id}/fulfillment`)).send({ status: 'DONE' });
+    await fulfil(staff).expect(403);
+    await fulfil(admin).expect(200);
+    const done = await admin.as(api().get('/api/v1/processing')).expect(200);
     expect(done.body.done.map((o: { id: string }) => o.id)).toContain(order.id);
+  });
+
+  it('staff hanya memantau order yang dia input sendiri di Diproses', async () => {
+    // Stok minus dari uji COD di atas; isi lagi supaya order hari ini bisa dibuat.
+    await ctx.prisma.product.update({ where: { id: productId }, data: { stockPcs: 100 } });
+    const mine = await staff
+      .as(api().post('/api/v1/orders'))
+      .send({ items: [{ variantId: f6, qty: 1 }], customerName: 'e2e Staff' })
+      .expect(201);
+    const byAdmin = await admin
+      .as(api().post('/api/v1/orders'))
+      .send({ items: [{ variantId: f6, qty: 1 }], customerName: 'e2e Admin' })
+      .expect(201);
+    staffOrderIds.push(mine.body.id, byAdmin.body.id);
+    for (const id of [mine.body.id, byAdmin.body.id]) {
+      await admin
+        .as(api().post(`/api/v1/orders/${id}/approve`))
+        .send({ paymentMethodId: qrisId })
+        .expect(200);
+    }
+    const staffView = await staff.as(api().get('/api/v1/processing')).expect(200);
+    const ids = staffView.body.processing.map((o: { id: string }) => o.id);
+    expect(ids).toContain(mine.body.id);
+    expect(ids).not.toContain(byAdmin.body.id);
+    expect(
+      staffView.body.processing.every(
+        (o: { createdBy: { id: string } | null }) => o.createdBy?.id === staff.id,
+      ),
+    ).toBe(true);
+    await staff
+      .as(api().patch(`/api/v1/orders/${mine.body.id}/fulfillment`))
+      .send({ status: 'DONE' })
+      .expect(403);
   });
 
   it('staff tidak bisa melihat pengaturan webhook; URL dibuat otomatis', async () => {
@@ -178,61 +215,53 @@ describe('Alur Diproses, COD, dan notifikasi QRIS (e2e)', () => {
     await notify('Kamu menerima Rp1.000 e2e', 'kunci-salah-kunci-salah').expect(404);
   });
 
-  it('notifikasi DANA uang masuk → order QRIS cocok otomatis Diproses', async () => {
+  it('notifikasi DANA hanya dicatat & tampil sebagai pembanding bukti bayar saat approve', async () => {
     const order = await onlineOrder();
-    const amount = order.total + order.uniqueCode!;
+    const other = await onlineOrder(); // tagihan sama persis (35.000)
+    expect(order.uniqueCode).toBeNull();
+    const amount = order.total;
     const rupiah = new Intl.NumberFormat('id-ID').format(amount);
 
-    // Uji coba (tanpa menyetujui) menemukan order yang cocok.
+    // Uji coba teks: nominal terbaca & order menunggu dengan tagihan sama ditampilkan.
     const test = await admin
       .as(api().post('/api/v1/payment-notifications/test'))
-      .send({ text: `Kamu menerima Rp${rupiah} dari e2e` })
+      .send({ text: `Rp${rupiah} diterima DANA Bisnis.` })
       .expect(200);
     expect(test.body).toMatchObject({ amount, incoming: true, ignoreReason: null });
-    expect(test.body.matches).toEqual([{ orderNo: order.orderNo, customerName: 'e2e Proses' }]);
+    expect(test.body.matches.map((m: { orderNo: string }) => m.orderNo)).toEqual(
+      expect.arrayContaining([order.orderNo, other.orderNo]),
+    );
+
+    // Uang keluar diabaikan; uang masuk hanya dicatat — order tetap menunggu approve admin.
+    const out = await notify(`Kamu berhasil membayar Rp${rupiah} ke Toko e2e`).expect(200);
+    expect(out.body.result).toBe('IGNORED');
+    const res = await notify(`Rp${rupiah} diterima DANA Bisnis. e2e-1`).expect(200);
+    expect(res.body).toEqual({ ok: true, result: 'RECEIVED' });
     expect((await ctx.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
       'PENDING',
     );
+    const dup = await notify(`Rp${rupiah} diterima DANA Bisnis. e2e-1`).expect(200);
+    expect(dup.body.result).toBe('IGNORED'); // MacroDroid terpicu dua kali
 
-    // Uang keluar dengan nominal sama tidak boleh menyetujui order.
-    const out = await notify(`Kamu berhasil membayar Rp${rupiah} ke Toko e2e`).expect(200);
-    expect(out.body.result).toBe('IGNORED');
+    // Dialog approve: satu uang masuk yang cocok tampil untuk kedua order bertagihan sama.
+    const forOrder = (id: string) =>
+      admin.as(api().get(`/api/v1/payment-notifications/for-order/${id}`)).expect(200);
+    await staff.as(api().get(`/api/v1/payment-notifications/for-order/${order.id}`)).expect(403);
+    expect((await forOrder(order.id)).body).toHaveLength(1);
+    expect((await forOrder(other.id)).body).toHaveLength(1);
 
-    const res = await notify(`Kamu menerima Rp${rupiah} dari SITI e2e`).expect(200);
-    expect(res.body).toEqual({ ok: true, result: 'MATCHED' });
-    const saved = await ctx.prisma.order.findUniqueOrThrow({
-      where: { id: order.id },
-      include: { logs: true },
-    });
-    expect(saved).toMatchObject({
-      status: 'PAID',
-      fulfillmentStatus: 'PROCESSING',
-      paidAmount: amount,
-      approvedById: null,
-    });
-    expect(saved.paidAt).not.toBeNull();
-    expect(saved.logs.find((l) => l.action === 'APPROVED')?.reason).toMatch(/QRIS otomatis/);
-    const moves = await ctx.prisma.stockMovement.findMany({
-      where: { refId: order.id, type: 'SALE' },
-    });
-    expect(moves.length).toBeGreaterThan(0);
-    expect(moves.every((m) => m.userId === null)).toBe(true);
-
-    // MacroDroid terpicu dua kali → duplikat diabaikan.
-    const dup = await notify(`Kamu menerima Rp${rupiah} dari SITI e2e`).expect(200);
-    expect(dup.body.result).toBe('IGNORED');
-
-    const setup = await admin.as(api().get('/api/v1/payment-notifications/setup')).expect(200);
-    const matched = setup.body.notifications.find(
-      (n: { result: string; order: { id: string } | null }) =>
-        n.result === 'MATCHED' && n.order?.id === order.id,
-    );
-    expect(matched).toMatchObject({ amount, app: 'DANA' });
+    // Approve order pertama → notifikasi itu dipakai order ini, tidak bisa jadi "bukti" order lain.
+    await admin
+      .as(api().post(`/api/v1/orders/${order.id}/approve`))
+      .send({ confirmWithoutProof: true })
+      .expect(200);
+    const used = (await forOrder(order.id)).body;
+    expect(used).toHaveLength(1);
+    expect(used[0]).toMatchObject({ result: 'MATCHED', order: { id: order.id } });
+    expect((await forOrder(other.id)).body).toHaveLength(0);
   });
 
-  it('nominal tanpa pasangan dicatat UNMATCHED; ganti kunci mematikan URL lama', async () => {
-    const res = await notify('Kamu menerima Rp7.654.321 dari e2e').expect(200);
-    expect(res.body.result).toBe('UNMATCHED');
+  it('ganti kunci mematikan URL webhook lama', async () => {
     const old = webhookKey;
     const rotated = await admin
       .as(api().post('/api/v1/payment-notifications/rotate-key'))
@@ -240,5 +269,7 @@ describe('Alur Diproses, COD, dan notifikasi QRIS (e2e)', () => {
     webhookKey = rotated.body.key;
     expect(webhookKey).not.toBe(old);
     await notify('Kamu menerima Rp1.000 e2e lama', old).expect(404);
+    const res = await notify('Kamu menerima Rp7.654.321 dari e2e baru').expect(200);
+    expect(res.body.result).toBe('RECEIVED');
   });
 });

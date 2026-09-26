@@ -71,18 +71,5 @@ export function pushPlan(
       },
     });
   }
-  // QRIS terdeteksi dari notifikasi e-wallet → order otomatis diproses.
-  if (actorId === null && order.status === 'PAID') {
-    targets.push({
-      to: 'admins',
-      exceptUserId: null,
-      message: {
-        title: `QRIS masuk · ${order.orderNo} diproses`,
-        body: order.label,
-        url: '/admin/diproses',
-        tag,
-      },
-    });
-  }
   return targets;
 }

@@ -226,26 +226,21 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
         )}
       </Section>
 
-      <Section
-        title="Self-Order QR Meja"
-        description="Aturan untuk pelanggan yang pesan dengan scan QR"
-      >
-        <SwitchRow
-          title="Self-order aktif"
-          description="Matikan agar semua QR meja menampilkan 'pesan di kasir'"
-          checked={form.qrOrderingEnabled}
-          onChange={(v) => set('qrOrderingEnabled', v)}
-        />
+      <Section title="Pesanan Pelanggan" description="Aturan untuk pesanan lewat link order online">
         <p className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600">
           Pilihan cara bayar pelanggan (QRIS, Cash, Transfer) diatur di{' '}
           <Link to="/admin/lainnya/metode-bayar" className="text-brand-700 font-semibold">
             Metode Bayar
           </Link>{' '}
-          → &quot;Tampil di QR pelanggan&quot;.
+          → &quot;Tampil ke pelanggan&quot;. Transfer baru muncul setelah ada rekening di{' '}
+          <Link to="/admin/lainnya/rekening" className="text-brand-700 font-semibold">
+            Rekening Bank
+          </Link>
+          . Self-order QR meja sedang dinonaktifkan.
         </p>
         <Field
           label="Batas total per order"
-          hint={`Order QR di atas ${formatRupiah(form.qrMaxOrderTotal || 0)} ditolak (mencegah iseng)`}
+          hint={`Pesanan pelanggan di atas ${formatRupiah(form.qrMaxOrderTotal || 0)} ditolak (mencegah iseng)`}
         >
           <MoneyInput
             value={form.qrMaxOrderTotal}
@@ -339,8 +334,8 @@ function QrisSetting({
             {info.nmid ? ` · ${info.nmid}` : ''}
           </p>
           <p className="text-xs">
-            Pelanggan yang pilih QRIS mendapat QR dengan nominal + kode unik, uang tetap masuk ke
-            QRIS ini.
+            Pelanggan yang pilih QRIS mendapat QR dengan nominal pas sesuai tagihan, uang tetap
+            masuk ke QRIS ini.
           </p>
         </div>
       ) : imageUrl ? (

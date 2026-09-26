@@ -17,6 +17,7 @@ import { PaymentMethodsModule } from './payment-methods/payment-methods.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProductAliasesModule } from './product-aliases/product-aliases.module';
 import { ProductionsModule } from './productions/productions.module';
+import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { PaymentNotificationsModule } from './payment-notifications/payment-notifications.module';
 import { PublicModule } from './public/public.module';
 import { PushModule } from './push/push.module';
@@ -52,6 +53,7 @@ import { UsersModule } from './users/users.module';
     TablesModule,
     PublicModule,
     PaymentNotificationsModule,
+    BankAccountsModule,
     PurchasesModule,
     ProductionsModule,
     OpnamesModule,

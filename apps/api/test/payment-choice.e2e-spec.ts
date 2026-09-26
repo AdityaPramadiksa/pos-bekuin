@@ -1,10 +1,16 @@
 /**
- * Revisi pembayaran pelanggan QR: pelanggan memilih cara bayar (QRIS/Cash), QRIS bernominal +
- * kode unik dari QRIS statis toko, order QR dikunci saat approval (tanpa ubah item/diskon).
+ * Pembayaran pelanggan: pelanggan memilih cara bayar (QRIS/Cash/Transfer), QRIS bernominal pas
+ * dari QRIS statis toko (v2.4: tanpa kode unik, wajib bukti bayar), Transfer menampilkan
+ * rekening dari admin, order pelanggan dikunci saat approval (tanpa ubah item/diskon).
  */
 import { parseQris, qrisCrc16 } from '@bekuin/shared';
 import { createTestContext } from './helpers';
 
+// PNG 1×1 untuk uji unggah bukti bayar.
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
 const tlv = (id: string, v: string) => `${id}${String(v.length).padStart(2, '0')}${v}`;
 const withCrc = (body: string) => body + '6304' + qrisCrc16(body + '6304');
 const STATIC_QRIS = withCrc(
@@ -32,6 +38,8 @@ describe('Pembayaran pilihan pelanggan & QRIS bernominal (e2e)', () => {
   let transferId: string;
   let originalSettings: Record<string, unknown>;
   let originalMethods: { id: string; showToCustomer: boolean; isActive: boolean }[];
+  let originalBankAccounts: { id: string; isActive: boolean }[];
+  const bankAccountIds: string[] = [];
   const api = () => ctx.api();
 
   const order = (table: number, body: Record<string, unknown> = {}) =>
@@ -73,6 +81,7 @@ describe('Pembayaran pilihan pelanggan & QRIS bernominal (e2e)', () => {
       data: { showToCustomer: true, isActive: true },
     });
     await p.paymentMethod.update({ where: { id: transferId }, data: { showToCustomer: false } });
+    originalBankAccounts = await p.bankAccount.findMany({ select: { id: true, isActive: true } });
 
     const siapMakan = await p.salesCategory.findUniqueOrThrow({ where: { code: 'SIAP_MAKAN' } });
     const product = await p.product.create({
@@ -109,6 +118,10 @@ describe('Pembayaran pilihan pelanggan & QRIS bernominal (e2e)', () => {
     await p.productVariant.deleteMany({ where: { productId } });
     await p.product.delete({ where: { id: productId } });
     await p.diningTable.deleteMany({ where: { id: { in: tableIds } } });
+    await p.bankAccount.deleteMany({ where: { id: { in: bankAccountIds } } });
+    for (const b of originalBankAccounts) {
+      await p.bankAccount.update({ where: { id: b.id }, data: { isActive: b.isActive } });
+    }
     for (const m of originalMethods) {
       await p.paymentMethod.update({
         where: { id: m.id },
@@ -149,32 +162,66 @@ describe('Pembayaran pilihan pelanggan & QRIS bernominal (e2e)', () => {
   });
 
   let qrisToken: string;
-  let qrisCode: number;
 
-  it('QRIS: kode unik 1–99, QR bernominal total + kode, bukti bayar opsional', async () => {
+  it('QRIS: nominal pas sesuai total (tanpa kode unik), wajib unggah bukti bayar', async () => {
     qrisToken = (await order(0).expect(201)).body.publicToken;
     const saved = await byToken(qrisToken);
-    qrisCode = saved.uniqueCode!;
-    expect(qrisCode).toBeGreaterThanOrEqual(1);
-    expect(qrisCode).toBeLessThanOrEqual(99);
-    expect(saved).toMatchObject({ paymentMethodId: qrisId, payAtCashier: false });
+    expect(saved).toMatchObject({ paymentMethodId: qrisId, payAtCashier: false, uniqueCode: null });
 
     const v = await view(qrisToken);
-    expect(v.payment).toMatchObject({
-      type: 'QRIS',
-      methodName: 'QRIS',
-      amount: 25000 + qrisCode,
-      uniqueCode: qrisCode,
-    });
+    expect(v.payment).toMatchObject({ type: 'QRIS', methodName: 'QRIS', amount: 25000 });
+    expect(v.payment).not.toHaveProperty('uniqueCode');
     const tags = parseQris(v.payment.qrisPayload);
-    expect(tags.find((t) => t.id === '54')?.value).toBe(String(25000 + qrisCode));
+    expect(tags.find((t) => t.id === '54')?.value).toBe('25000');
     expect(tags.find((t) => t.id === '59')?.value).toBe('BEKUIN UJI');
     expect(v.canUploadProof).toBe(true);
+  });
 
-    // Order QRIS lain dengan total sama mendapat nominal berbeda.
-    const other = (await order(1).expect(201)).body.publicToken;
-    const otherView = await view(other);
-    expect(otherView.payment.amount).not.toBe(v.payment.amount);
+  it('Transfer: muncul ke pelanggan hanya bila admin sudah mengisi rekening', async () => {
+    await ctx.prisma.paymentMethod.update({
+      where: { id: transferId },
+      data: { showToCustomer: true, isActive: true },
+    });
+    const types = async () =>
+      (
+        await api().get(`/api/v1/public/tables/${tokens[0]}/menu`).expect(200)
+      ).body.paymentMethods.map((m: { type: string }) => m.type);
+    // Belum ada rekening aktif → Transfer disembunyikan & ditolak.
+    await ctx.prisma.bankAccount.updateMany({ data: { isActive: false } });
+    expect(await types()).not.toContain('TRANSFER');
+    await order(1, { paymentMethodId: transferId }).expect(400);
+
+    await staff
+      .as(api().post('/api/v1/bank-accounts'))
+      .send({ bankName: 'BCA', accountNumber: '1234567890', accountName: 'e2e Bekuin' })
+      .expect(403);
+    const bad = await admin
+      .as(api().post('/api/v1/bank-accounts'))
+      .send({ bankName: 'BCA', accountNumber: '12ab', accountName: 'e2e Bekuin' })
+      .expect(400);
+    expect(JSON.stringify(bad.body.message)).toMatch(/hanya angka/);
+    const created = await admin
+      .as(api().post('/api/v1/bank-accounts'))
+      .send({ bankName: 'BCA', accountNumber: '1234-5678 90', accountName: 'e2e Bekuin' })
+      .expect(201);
+    bankAccountIds.push(created.body.id);
+    expect(created.body).toMatchObject({ accountNumber: '1234567890', isActive: true });
+    expect(await types()).toContain('TRANSFER');
+
+    const token = (await order(1, { paymentMethodId: transferId }).expect(201)).body.publicToken;
+    const v = await view(token);
+    expect(v.payment.bankAccounts).toEqual([
+      { bankName: 'BCA', accountNumber: '1234567890', accountName: 'e2e Bekuin' },
+    ]);
+    expect(v.canUploadProof).toBe(true);
+
+    // Rekening dinonaktifkan → Transfer hilang lagi dari pilihan pelanggan.
+    await admin
+      .as(api().patch(`/api/v1/bank-accounts/${created.body.id}`))
+      .send({ isActive: false })
+      .expect(200);
+    expect(await types()).not.toContain('TRANSFER');
+    await api().post(`/api/v1/public/orders/${token}/cancel`).expect(200);
   });
 
   it('Cash: bayar di kasir, tanpa kode unik & tanpa unggah bukti', async () => {
@@ -213,11 +260,17 @@ describe('Pembayaran pilihan pelanggan & QRIS bernominal (e2e)', () => {
       .expect(400);
 
     // Mengirim item yang sama (tanpa perubahan) tetap boleh.
+    // Belum ada bukti bayar → approve ditolak kecuali admin mengonfirmasi sudah cek uang masuk.
+    await approve({ items: [{ id: itemId, qty: 1 }] }).expect(400);
+    await api()
+      .post(`/api/v1/public/orders/${qrisToken}/payment-proof`)
+      .attach('file', PNG, { filename: 'bukti.png', contentType: 'image/png' })
+      .expect(200);
     const ok = await approve({ items: [{ id: itemId, qty: 1 }] }).expect(200);
     expect(ok.body).toMatchObject({ status: 'PAID', total: 25000, discount: 0 });
     expect(ok.body.paymentMethod.type).toBe('QRIS');
-    expect(ok.body.paidAmount).toBe(25000 + qrisCode);
-    expect(ok.body.uniqueCode).toBe(qrisCode);
+    expect(ok.body.paidAmount).toBe(25000);
+    expect(ok.body.paymentProofUrl).toMatch(/^\/uploads\/proof\//);
   });
 
   it('order staff tetap bisa dikoreksi & admin wajib memilih metode bayar', async () => {

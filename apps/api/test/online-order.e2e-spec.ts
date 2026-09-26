@@ -138,7 +138,7 @@ describe('Link order online (e2e)', () => {
 
   let deliveryToken: string;
 
-  it('diantar: ongkir tetap masuk total; gratis ongkir di atas batas; QRIS kode unik', async () => {
+  it('diantar: ongkir tetap masuk total; gratis ongkir di atas batas; QRIS tanpa kode unik', async () => {
     const res = await order();
     expect(res.status).toBe(201);
     deliveryToken = res.body.publicToken;
@@ -157,7 +157,7 @@ describe('Link order online (e2e)', () => {
       total: 35000,
     });
     expect(saved.deliveryDate.toISOString().slice(0, 10)).toBe(wita(1));
-    expect(saved.uniqueCode).toBeGreaterThan(0);
+    expect(saved.uniqueCode).toBeNull(); // v2.4: tanpa kode unik, bayar pas sesuai total
 
     const view = await api().get(`/api/v1/public/orders/${deliveryToken}`).expect(200);
     expect(view.body.delivery).toEqual({
@@ -166,7 +166,8 @@ describe('Link order online (e2e)', () => {
       fee: 10000,
       date: wita(1),
     });
-    expect(view.body.payment.amount).toBe(35000 + saved.uniqueCode!);
+    expect(view.body.payment.amount).toBe(35000);
+    expect(view.body.canUploadProof).toBe(true); // QRIS wajib bukti bayar
     expect(view.body.tableName).toBeNull();
 
     const free = await order({ items: [{ variantId: f6, qty: 3 }] });
@@ -225,7 +226,7 @@ describe('Link order online (e2e)', () => {
     await settings({ onlineOrderingEnabled: true });
   });
 
-  it('approve: pesanan online dikunci, total termasuk ongkir, QRIS + kode unik', async () => {
+  it('approve: pesanan online dikunci, total termasuk ongkir, QRIS wajib bukti bayar', async () => {
     const saved = await ctx.prisma.order.findUniqueOrThrow({
       where: { publicToken: deliveryToken },
       include: { items: true },
@@ -234,16 +235,42 @@ describe('Link order online (e2e)', () => {
       admin.as(api().post(`/api/v1/orders/${saved.id}/approve`)).send(body);
     await approve({ items: [{ id: saved.items[0].id, qty: 2 }] }).expect(400);
     await approve({ discount: 5000 }).expect(400);
-    const ok = await approve({}).expect(200);
+    // Belum ada bukti bayar → admin harus menyatakan sudah mengecek uang masuk.
+    const noProof = await approve({}).expect(400);
+    expect(noProof.body.message).toMatch(/belum mengunggah bukti bayar/);
+    const ok = await approve({ confirmWithoutProof: true }).expect(200);
     expect(ok.body).toMatchObject({
       status: 'PAID',
       subtotal: 25000,
       deliveryFee: 10000,
       total: 35000,
-      paidAmount: 35000 + saved.uniqueCode!,
+      paidAmount: 35000,
       deliveryMethod: 'DELIVERY',
     });
     expect(ok.body.paymentMethod.type).toBe('QRIS');
+  });
+
+  it('riwayat pesanan: hanya token yang dimiliki pelanggan, terbaru di atas', async () => {
+    const lookup = (tokens: unknown) => api().post('/api/v1/public/orders/lookup').send({ tokens });
+    const res = await lookup([...created, 'token-ngasal-tidak-ada']).expect(200);
+    expect(res.body.map((o: { publicToken: string }) => o.publicToken).sort()).toEqual(
+      [...created].sort(),
+    );
+    const delivered = res.body.find(
+      (o: { publicToken: string }) => o.publicToken === deliveryToken,
+    );
+    expect(delivered).toMatchObject({
+      status: 'PAID',
+      total: 35000,
+      itemCount: 1,
+      delivery: { method: 'DELIVERY', date: wita(1) },
+    });
+    expect(delivered.itemsSummary).toContain('isi 6 ×1');
+    expect(delivered).not.toHaveProperty('customerPhone');
+    const times = res.body.map((o: { createdAt: string }) => o.createdAt);
+    expect(times).toEqual([...times].sort().reverse());
+    await lookup([]).expect(400);
+    await lookup(Array.from({ length: 51 }, (_, i) => `t${i}`)).expect(400);
   });
 
   it('pelanggan bisa membatalkan pesanan online yang belum dibayar', async () => {

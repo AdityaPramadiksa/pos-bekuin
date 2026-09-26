@@ -55,7 +55,7 @@ export function PaymentMethodsPage() {
                   <div className="flex flex-wrap items-center gap-1.5">
                     <p className="font-medium">{m.name}</p>
                     <Badge>{TYPE_LABEL[m.type]}</Badge>
-                    {m.showToCustomer && <Badge tone="blue">Tampil di QR pelanggan</Badge>}
+                    {m.showToCustomer && <Badge tone="blue">Tampil ke pelanggan</Badge>}
                     {!m.isActive && <Badge>Nonaktif</Badge>}
                   </div>
                   {m.accountInfo && (

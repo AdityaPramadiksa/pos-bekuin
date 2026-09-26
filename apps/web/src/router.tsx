@@ -17,6 +17,10 @@ export const router = createBrowserRouter([
     element: lazyPage(() => import('@/features/customer/CustomerMenuPage'), 'OnlineOrderPage'),
   },
   {
+    path: '/riwayat',
+    element: lazyPage(() => import('@/features/customer/MyOrdersPage'), 'MyOrdersPage'),
+  },
+  {
     path: '/o/:publicToken',
     element: lazyPage(() => import('@/features/customer/OrderTrackingPage'), 'OrderTrackingPage'),
   },
@@ -146,6 +150,13 @@ export const router = createBrowserRouter([
               {
                 path: 'lainnya/pengguna',
                 element: lazyPage(() => import('@/features/admin/users/UsersPage'), 'UsersPage'),
+              },
+              {
+                path: 'lainnya/rekening',
+                element: lazyPage(
+                  () => import('@/features/admin/bank-accounts/BankAccountsPage'),
+                  'BankAccountsPage',
+                ),
               },
               {
                 path: 'lainnya/qris-otomatis',

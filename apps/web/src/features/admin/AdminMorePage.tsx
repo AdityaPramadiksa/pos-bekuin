@@ -4,10 +4,10 @@ import {
   ChevronRight,
   Cog,
   CreditCard,
+  Landmark,
   Link2,
   type LucideIcon,
   Printer,
-  QrCode,
   ReceiptText,
   UserRound,
   Users,
@@ -41,8 +41,14 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         to: '/admin/lainnya/metode-bayar',
       },
       {
-        label: 'QRIS Otomatis (DANA)',
-        description: 'Baca notifikasi DANA di HP admin, order QRIS langsung diproses',
+        label: 'Rekening Bank',
+        description: 'Nomor rekening tujuan untuk pelanggan yang bayar Transfer',
+        icon: Landmark,
+        to: '/admin/lainnya/rekening',
+      },
+      {
+        label: 'Cek Uang Masuk DANA',
+        description: 'Notifikasi DANA di HP admin jadi pembanding bukti bayar QRIS',
         icon: BellRing,
         to: '/admin/lainnya/qris-otomatis',
       },
@@ -52,12 +58,7 @@ const SECTIONS: { title: string; items: MenuLink[] }[] = [
         icon: Link2,
         to: '/admin/lainnya/order-online',
       },
-      {
-        label: 'Meja & QR',
-        description: 'Kelola meja, cetak QR self-order',
-        icon: QrCode,
-        to: '/admin/lainnya/meja',
-      },
+      // Self-order QR meja dinonaktifkan sementara (v2.4); halaman /admin/lainnya/meja tetap ada.
       {
         label: 'Bahan, Resep & HPP',
         description: 'Bahan baku, resep bertingkat, kemasan',

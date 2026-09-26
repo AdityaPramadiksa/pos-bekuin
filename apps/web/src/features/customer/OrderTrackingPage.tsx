@@ -79,15 +79,15 @@ function headline(o: PublicOrderView): {
     if (o.hasPaymentProof)
       return {
         title: 'Menunggu konfirmasi',
-        sub: 'Bukti bayar sudah terkirim, kasir sedang mengecek.',
+        sub: 'Bukti bayar sudah terkirim, admin sedang mengecek uangnya masuk.',
         tone: 'amber',
       };
     return {
-      title: 'Menunggu pembayaran',
+      title: 'Bayar & unggah bukti bayar',
       sub:
         o.payment.type === 'TRANSFER'
-          ? 'Transfer sesuai nominal di bawah.'
-          : 'Scan QRIS di bawah dan bayar sesuai nominal. Pesanan otomatis diproses begitu uang masuk.',
+          ? 'Transfer sesuai nominal ke rekening di bawah, lalu unggah screenshot bukti bayarnya.'
+          : 'Scan QRIS di bawah, bayar sesuai nominal, lalu unggah screenshot bukti bayarnya.',
       tone: 'amber',
     };
   }
@@ -296,6 +296,11 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
             </Button>
           </Link>
         )}
+        <Link to="/riwayat" className="block">
+          <Button variant="ghost" className="w-full">
+            Lihat semua riwayat pesanan
+          </Button>
+        </Link>
         {o.canCancel && (
           <Button
             variant="ghost"
