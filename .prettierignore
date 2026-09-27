@@ -5,3 +5,4 @@ pnpm-lock.yaml
 apps/api/prisma/migrations
 apps/web/dev-dist
 *.md
+aethera-office

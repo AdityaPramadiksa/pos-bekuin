@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+# Folder kerja agent (default AGENT_WORKSPACES_DIR) dan log demo
+workspaces/
+*.ndjson
+!**/__fixtures__/*.ndjson

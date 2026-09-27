@@ -1,0 +1,12 @@
+{
+  "name": "@aethera/hook-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Skrip kecil yang dipanggil hook Claude Code dan meneruskan payload ke orchestrator",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  }
+}

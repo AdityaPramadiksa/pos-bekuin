@@ -14,6 +14,8 @@ export default tseslint.config(
       '**/coverage',
       '**/node_modules',
       'apps/api/prisma/migrations',
+      // Proyek terpisah dengan konfigurasi lint sendiri.
+      'aethera-office',
     ],
   },
   js.configs.recommended,
