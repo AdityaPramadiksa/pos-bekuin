@@ -12,10 +12,17 @@
     "demo": "pnpm --filter @aethera/hook-relay build && tsx src/orchestrator/demo.ts"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.23.15"
   },
   "dependencies": {
     "@aethera/hook-relay": "workspace:*",
-    "@aethera/shared": "workspace:*"
+    "@aethera/shared": "workspace:*",
+    "@fastify/cors": "^11.3.0",
+    "better-sqlite3": "^13.0.3",
+    "fastify": "^5.12.5",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.5"
   }
 }
