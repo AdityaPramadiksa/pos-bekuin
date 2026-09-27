@@ -12,6 +12,19 @@
   --color-series-1: #2a78d6;
   --color-series-1-wash: #2a78d61a;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Ikon di bulatan navbar bawah muncul saat pindah tab */
+  --animate-nav-pop: nav-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  @keyframes nav-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.4) rotate(-45deg);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) rotate(0);
+    }
+  }
 }
 
 html,
@@ -28,4 +41,11 @@ body {
 /* Ruang aman untuk bottom bar di HP berponi */
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Bar aksi yang menempel tepat di atas navbar bawah (HP). Padding bawah = ruang untuk bulatan
+   navbar yang menonjol 18px di atas bar, supaya tidak menutupi tombol. */
+@utility above-nav {
+  bottom: calc(4rem + env(safe-area-inset-bottom));
+  padding-bottom: 1.75rem;
 }

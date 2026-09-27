@@ -5,26 +5,20 @@ import {
   ClipboardCheck,
   History,
   LayoutDashboard,
-  type LucideIcon,
   Menu,
   Package,
   ShoppingBasket,
   UserRound,
 } from 'lucide-react';
-import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useOrders } from '@/lib/queries';
 import { useRealtime } from '@/lib/useRealtime';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
+import { BottomNav } from './BottomNav';
+import { isNavItemActive, type NavItem } from './nav';
 
-interface NavItem {
-  to: string;
-  label: string;
-  icon: LucideIcon;
-  end?: boolean;
-}
-
-// PRD bagian 4 (+ revisi 2.3: tab Diproses).
+// PRD bagian 4. Admin (v2.7): Diproses dibuka dari halaman Order, jadi tidak jadi tab sendiri.
 const NAV: Record<Role, NavItem[]> = {
   STAFF: [
     { to: '/staff/order', label: 'Order Baru', icon: ShoppingBasket },
@@ -35,8 +29,7 @@ const NAV: Record<Role, NavItem[]> = {
   ADMIN: [
     { to: '/admin', label: 'Beranda', icon: LayoutDashboard, end: true },
     { to: '/admin/approval', label: 'Approval', icon: ClipboardCheck },
-    { to: '/admin/diproses', label: 'Diproses', icon: ChefHat },
-    { to: '/admin/order', label: 'Order', icon: BarChart3 },
+    { to: '/admin/order', label: 'Order', icon: BarChart3, alsoActive: ['/admin/diproses'] },
     { to: '/admin/stok', label: 'Stok', icon: Package },
     { to: '/admin/lainnya', label: 'Lainnya', icon: Menu },
   ],
@@ -55,21 +48,32 @@ export function RequireAuth({ roles }: { roles?: Role[] }) {
   return <Outlet />;
 }
 
-/** Bottom tab bar di HP, sidebar di tablet/desktop (mode POS kasir). */
 /** Jumlah order PENDING untuk badge tab Approval (admin). */
 function usePendingCount(enabled: boolean) {
   const pending = useOrders({ status: 'PENDING', limit: 1 }, { refetchInterval: 60_000 });
   return enabled ? (pending.data?.total ?? 0) : 0;
 }
 
+/** Bottom tab bar di HP, sidebar di tablet/desktop (mode POS kasir). */
 export function AppLayout({ role }: { role: Role }) {
   const items = NAV[role];
   const user = useAuthStore((s) => s.user);
+  const { pathname } = useLocation();
   useRealtime();
   const pendingCount = usePendingCount(role === 'ADMIN');
-  const badge = (to: string) =>
+  const activeIndex = items.findIndex((item) => isNavItemActive(item, pathname));
+  const badge = (to: string, placement: 'icon' | 'circle' | 'sidebar') =>
     to === '/admin/approval' && pendingCount > 0 ? (
-      <span className="bg-brand-700 absolute -top-1 -right-2 min-w-4 rounded-full px-1 text-center text-[10px] leading-4 font-bold text-white md:static md:ml-auto md:text-xs">
+      <span
+        className={cn(
+          'min-w-4 rounded-full px-1 text-center text-[10px] leading-4 font-bold',
+          placement === 'sidebar'
+            ? 'bg-brand-700 ml-auto text-xs text-white'
+            : placement === 'circle'
+              ? 'text-brand-700 ring-brand-700 absolute -top-1 -right-1 bg-white ring-2'
+              : 'bg-brand-700 absolute -top-1 -right-2 text-white',
+        )}
+      >
         {pendingCount}
       </span>
     ) : null;
@@ -84,54 +88,32 @@ export function AppLayout({ role }: { role: Role }) {
           </p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {items.map((item) => (
-            <NavLink
+          {items.map((item, i) => (
+            <Link
               key={item.to}
               to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
-                  isActive ? 'bg-brand-50 text-brand-700' : 'text-stone-600 hover:bg-stone-100',
-                )
-              }
+              aria-current={i === activeIndex ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium',
+                i === activeIndex
+                  ? 'bg-brand-50 text-brand-700'
+                  : 'text-stone-600 hover:bg-stone-100',
+              )}
             >
               <item.icon className="size-5" />
               {item.label}
-              {badge(item.to)}
-            </NavLink>
+              {badge(item.to, 'sidebar')}
+            </Link>
           ))}
         </nav>
       </aside>
 
-      <main className="min-w-0 flex-1 pb-20 md:pb-0">
+      {/* pb-28: ruang untuk navbar bawah + bulatan yang menonjol di atasnya */}
+      <main className="min-w-0 flex-1 pb-28 md:pb-0">
         <Outlet />
       </main>
 
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-20 border-t border-stone-200 bg-white md:hidden">
-        <ul className="flex">
-          {items.map((item) => (
-            <li key={item.to} className="flex-1">
-              <NavLink
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  cn(
-                    'flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium',
-                    isActive ? 'text-brand-700' : 'text-stone-500',
-                  )
-                }
-              >
-                <span className="relative">
-                  <item.icon className="size-5" />
-                  {badge(item.to)}
-                </span>
-                {item.label}
-              </NavLink>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <BottomNav items={items} activeIndex={activeIndex} badge={badge} />
     </div>
   );
 }

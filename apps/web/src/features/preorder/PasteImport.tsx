@@ -377,7 +377,7 @@ export function PasteImport({ onSaved }: { onSaved?: (result: ImportResult) => v
         </p>
       )}
 
-      <div className="pb-safe fixed inset-x-0 bottom-16 z-20 border-t border-stone-200 bg-white px-4 py-3 md:bottom-0 md:left-56">
+      <div className="above-nav fixed inset-x-0 z-20 border-t border-stone-200 bg-white px-4 pt-3 md:bottom-0 md:left-56 md:pb-3">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <div className="text-sm">
             <p className="font-semibold">

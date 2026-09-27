@@ -171,11 +171,11 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
       </aside>
 
       {/* HP: bar bawah + sheet keranjang */}
-      <div className="fixed inset-x-0 bottom-16 z-20 px-3 pb-2 md:bottom-0 md:left-56 lg:hidden">
+      <div className="above-nav pointer-events-none fixed inset-x-0 z-20 px-3 md:bottom-0 md:left-56 md:pb-2 lg:hidden">
         <button
           disabled={lines.length === 0}
           onClick={() => setCartOpen(true)}
-          className="bg-brand-700 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-white shadow-lg disabled:bg-stone-400"
+          className="bg-brand-700 pointer-events-auto flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-white shadow-lg disabled:bg-stone-400"
         >
           <ShoppingBasket className="size-5" />
           <span className="text-sm font-medium">{totals.packs} pack</span>
