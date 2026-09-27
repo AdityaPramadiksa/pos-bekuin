@@ -192,6 +192,22 @@ describe('Sprint 1: pengguna, menu, pengaturan (e2e)', () => {
         openingHours: { mon: ['09:00', '21:00'] },
       });
     });
+
+    it('form pengaturan (hasil GET tanpa token link online) bisa langsung disimpan', async () => {
+      const current = await asAdmin(api().get('/api/v1/settings')).expect(200);
+      const { onlineOrderToken, ...editable } = current.body;
+      expect(onlineOrderToken).toEqual(expect.any(String));
+      await asAdmin(api().patch('/api/v1/settings'))
+        .send({ ...editable, unpaidCancelHours: 48 })
+        .expect(200);
+      // token link online tidak boleh diubah lewat PATCH /settings
+      await asAdmin(api().patch('/api/v1/settings'))
+        .send({ onlineOrderToken: 'palsu' })
+        .expect(400);
+      await asAdmin(api().patch('/api/v1/settings'))
+        .send({ unpaidCancelHours: current.body.unpaidCancelHours })
+        .expect(200);
+    });
   });
 
   describe('pengguna', () => {
