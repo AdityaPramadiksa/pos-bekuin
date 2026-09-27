@@ -1,4 +1,14 @@
-import type { AgentState, RunDetailResponse, RunSummary, StartRunRequest } from '@aethera/shared';
+import type {
+  AgentState,
+  CreateRoadmapItem,
+  ManagerInstruction,
+  RoadmapItem,
+  RunDetailResponse,
+  RunSummary,
+  SendInstruction,
+  StartRunRequest,
+  UpdateRoadmapItem,
+} from '@aethera/shared';
 
 /** Base URL API. Default "/api" (di-proxy Vite ke server di port 4400). */
 export const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
@@ -55,4 +65,25 @@ export const api = {
       `/runs/${encodeURIComponent(runId)}/agents/${encodeURIComponent(agentId)}/stop`,
       { method: 'POST' },
     ),
+  listRoadmap: (runId: string) =>
+    request<RoadmapItem[]>(`/runs/${encodeURIComponent(runId)}/roadmap`),
+  createRoadmapItem: (runId: string, body: CreateRoadmapItem) =>
+    request<RoadmapItem>(`/runs/${encodeURIComponent(runId)}/roadmap`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateRoadmapItem: (id: string, body: UpdateRoadmapItem) =>
+    request<RoadmapItem>(`/roadmap/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteRoadmapItem: (id: string) =>
+    request<void>(`/roadmap/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  listInstructions: (runId: string) =>
+    request<ManagerInstruction[]>(`/runs/${encodeURIComponent(runId)}/instructions`),
+  sendInstruction: (runId: string, body: SendInstruction) =>
+    request<ManagerInstruction[]>(`/runs/${encodeURIComponent(runId)}/instructions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };

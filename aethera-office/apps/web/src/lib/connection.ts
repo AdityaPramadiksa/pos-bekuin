@@ -1,4 +1,10 @@
-import { SOCKET_EVENTS, type AgentEvent, type RunSummary } from '@aethera/shared';
+import {
+  SOCKET_EVENTS,
+  type AgentEvent,
+  type ManagerInstruction,
+  type RoadmapItem,
+  type RunSummary,
+} from '@aethera/shared';
 import { io, type Socket } from 'socket.io-client';
 import { useDashboard } from '@/store/store';
 import { api, ApiError } from './api';
@@ -57,6 +63,12 @@ class RunConnection {
       else store().ingest([e]);
     });
     socket.on(SOCKET_EVENTS.runUpdated, (run: RunSummary) => store().runUpdated(run));
+    socket.on(SOCKET_EVENTS.roadmapUpdated, (msg: { runId: string; items: RoadmapItem[] }) =>
+      store().setRoadmap(msg.runId, msg.items),
+    );
+    socket.on(SOCKET_EVENTS.instructionUpdated, (i: ManagerInstruction) =>
+      store().instructionUpdated(i),
+    );
 
     void this.init();
     return () => {
@@ -114,7 +126,11 @@ class RunConnection {
     this.buffer = [];
     if (full) store().setPhase('loading');
     try {
-      const states = await api.getAgents(runId);
+      const [states, roadmap, instructions] = await Promise.all([
+        api.getAgents(runId),
+        api.listRoadmap(runId),
+        api.listInstructions(runId),
+      ]);
       let cursor = full ? 0 : this.lastCursor;
       let first = true;
       for (;;) {
@@ -130,6 +146,8 @@ class RunConnection {
         if (!page.hasMore) break;
       }
       this.lastCursor = cursor;
+      store().setRoadmap(runId, roadmap);
+      store().setInstructions(instructions);
       store().ingest(this.buffer);
       store().setPhase('ready');
     } catch (err) {

@@ -7,6 +7,9 @@ import { InProcessEventBus } from './event-bus';
 import { EventPipeline } from './event-pipeline';
 import { resolveRelayPath } from './orchestrator/hook-settings';
 import { AgentProcessManager } from './orchestrator/process-manager';
+import { ManagerRepository } from './db/manager-repository';
+import { InstructionService } from './instruction-service';
+import { RoadmapService } from './roadmap-service';
 import { RunService } from './run-service';
 
 /*
@@ -36,9 +39,18 @@ async function main(): Promise<void> {
     if (!r.ok) console.warn(`[orchestrator] event ditolak (${r.reason})`, e.type, e.agentId);
   });
 
+  const managerRepo = new ManagerRepository(db);
+  const roadmap = new RoadmapService(repo, managerRepo, bus);
   const runs = new RunService(repo, pipeline, bus, manager, {
     workspacesDir: config.workspacesDir,
+    onRunCreated: (run, tasks) => roadmap.seedForRun(run, tasks),
   });
+  const instructions = new InstructionService(repo, managerRepo, bus, manager, (r, a) =>
+    runs.workingDirFor(r, a),
+  );
+  // Urutan penting: batalkan antrean lama dulu, baru pulihkan run (status error memicu dispatch).
+  const staleQueued = managerRepo.failStaleQueued('server restart sebelum instruksi terkirim');
+  if (staleQueued) console.warn(`[server] ${staleQueued} instruksi antre dibatalkan`);
   const stale = runs.recoverStaleRuns();
   if (stale.length)
     console.warn(`[server] ${stale.length} run lama ditandai gagal (server restart)`);
@@ -48,6 +60,8 @@ async function main(): Promise<void> {
     bus,
     pipeline,
     runs,
+    roadmap,
+    instructions,
     handleHook: (b, t) => manager.handleHook(b, t),
     logger: true,
   });

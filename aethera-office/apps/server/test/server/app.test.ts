@@ -18,6 +18,9 @@ import { openDatabase, type Db } from '../../src/db/database';
 import { Repository } from '../../src/db/repository';
 import { InProcessEventBus } from '../../src/event-bus';
 import { EventPipeline } from '../../src/event-pipeline';
+import { ManagerRepository } from '../../src/db/manager-repository';
+import { InstructionService } from '../../src/instruction-service';
+import { RoadmapService } from '../../src/roadmap-service';
 import { RunService, type AgentRunner } from '../../src/run-service';
 import type { SpawnAgentInput } from '../../src/orchestrator/process-manager';
 
@@ -30,17 +33,19 @@ class FakeRunner implements AgentRunner {
   spawned: SpawnAgentInput[] = [];
   stopped: string[] = [];
   failFor = new Set<string>();
+  running = new Set<string>();
   spawnAgent(input: SpawnAgentInput) {
     if (this.failFor.has(input.agent.id)) throw new Error('claude tidak ditemukan');
     this.spawned.push(input);
-    return { sessionId: 's' };
+    this.running.add(`${input.runId}/${input.agent.id}`);
+    return { sessionId: input.resumeSessionId ?? 's' };
   }
   stopAgent(runId: string, agentId: string) {
     this.stopped.push(`${runId}/${agentId}`);
     return true;
   }
-  isRunning() {
-    return true;
+  isRunning(runId: string, agentId: string) {
+    return this.running.has(`${runId}/${agentId}`);
   }
 }
 
@@ -58,10 +63,24 @@ function setup() {
   const bus = new InProcessEventBus();
   pipeline = new EventPipeline(repo, bus);
   runner = new FakeRunner();
+  const managerRepo = new ManagerRepository(db);
+  const roadmap = new RoadmapService(repo, managerRepo, bus);
   runs = new RunService(repo, pipeline, bus, runner, {
     workspacesDir: mkdtempSync(join(tmpdir(), 'aethera-test-')),
+    onRunCreated: (run, tasks) => roadmap.seedForRun(run, tasks),
   });
-  app = buildApp({ repo, bus, pipeline, runs, handleHook: (b) => (hooks.push(b), true) });
+  const instructions = new InstructionService(repo, managerRepo, bus, runner, (r, a) =>
+    runs.workingDirFor(r, a),
+  );
+  app = buildApp({
+    repo,
+    bus,
+    pipeline,
+    runs,
+    roadmap,
+    instructions,
+    handleHook: (b) => (hooks.push(b), true),
+  });
 }
 
 function ev(

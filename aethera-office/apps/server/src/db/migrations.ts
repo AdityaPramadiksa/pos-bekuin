@@ -44,4 +44,35 @@ export const MIGRATIONS: { id: number; name: string; sql: string }[] = [
       );
     `,
   },
+  {
+    id: 2,
+    name: 'roadmap_and_instructions',
+    sql: `
+      CREATE TABLE roadmap_items (
+        id                TEXT PRIMARY KEY,
+        run_id            TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
+        title             TEXT NOT NULL,
+        assigned_agent_id TEXT,
+        status            TEXT NOT NULL CHECK (status IN ('pending','in_progress','done')),
+        progress_pct      INTEGER NOT NULL DEFAULT 0 CHECK (progress_pct BETWEEN 0 AND 100),
+        sort_order        INTEGER NOT NULL DEFAULT 0,
+        created_at        TEXT NOT NULL,
+        updated_at        TEXT NOT NULL
+      );
+      CREATE INDEX roadmap_items_run ON roadmap_items (run_id, sort_order);
+
+      CREATE TABLE manager_instructions (
+        id         TEXT PRIMARY KEY,
+        run_id     TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
+        agent_id   TEXT NOT NULL,
+        text       TEXT NOT NULL,
+        status     TEXT NOT NULL CHECK (status IN ('queued','sent','failed')),
+        mode       TEXT CHECK (mode IN ('resume','new')),
+        created_at TEXT NOT NULL,
+        sent_at    TEXT,
+        error      TEXT
+      );
+      CREATE INDEX manager_instructions_run ON manager_instructions (run_id, created_at);
+    `,
+  },
 ];

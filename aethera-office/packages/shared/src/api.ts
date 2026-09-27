@@ -55,4 +55,6 @@ export const SOCKET_EVENTS = {
   leave: 'leave',
   agentEvent: 'agent-event',
   runUpdated: 'run-updated',
+  roadmapUpdated: 'roadmap-updated',
+  instructionUpdated: 'instruction-updated',
 } as const;

@@ -17,6 +17,8 @@ export interface AgentRunner {
 
 export interface RunServiceOptions {
   workspacesDir: string;
+  /** Dipanggil setelah run tersimpan dan SEBELUM agent di-spawn (mis. membuat roadmap awal). */
+  onRunCreated?: (run: RunSummary, tasks: Record<string, string>) => void;
   now?: () => Date;
   newId?: () => string;
 }
@@ -52,6 +54,7 @@ export class RunService {
     };
     this.repo.createRun(run, req.tasks);
     this.bus.publish({ kind: 'run', run });
+    this.opts.onRunCreated?.(run, req.tasks);
 
     for (const agent of req.agents) {
       const workingDir = this.workingDirFor(runId, agent.id);

@@ -1,11 +1,19 @@
 import cors from '@fastify/cors';
-import { SOCKET_EVENTS, startRunRequestSchema } from '@aethera/shared';
+import {
+  SOCKET_EVENTS,
+  createRoadmapItemSchema,
+  sendInstructionSchema,
+  startRunRequestSchema,
+  updateRoadmapItemSchema,
+} from '@aethera/shared';
 import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import { Server as SocketServer } from 'socket.io';
 import { z } from 'zod';
 import type { Repository } from './db/repository';
 import type { EventBus } from './event-bus';
 import type { EventPipeline } from './event-pipeline';
+import type { InstructionService } from './instruction-service';
+import type { RoadmapError, RoadmapService } from './roadmap-service';
 import type { RunService } from './run-service';
 
 export interface AppDeps {
@@ -13,6 +21,8 @@ export interface AppDeps {
   bus: EventBus;
   pipeline: EventPipeline;
   runs: RunService;
+  roadmap: RoadmapService;
+  instructions: InstructionService;
   /** Penerima body hook-relay (AgentProcessManager.handleHook). */
   handleHook: (body: unknown, token: string | undefined) => boolean;
   logger?: boolean;
@@ -37,10 +47,16 @@ const eventsQuery = z.object({
   after: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(2000).default(500),
 });
+const ROADMAP_ERROR: Record<RoadmapError, [number, string]> = {
+  run_not_found: [404, 'Run tidak ditemukan'],
+  item_not_found: [404, 'Item roadmap tidak ditemukan'],
+  agent_not_in_run: [400, 'Agent tidak ada di run ini'],
+};
+
 const joinPayload = z.object({ runId: z.string().min(1).max(100) });
 
 export function buildApp(deps: AppDeps): App {
-  const { repo, bus, pipeline, runs } = deps;
+  const { repo, bus, pipeline, runs, roadmap, instructions } = deps;
   const fastify = Fastify({ logger: deps.logger ?? false, bodyLimit: 1024 * 1024 });
   void fastify.register(cors, { origin: LOCAL_ORIGIN });
 
@@ -98,6 +114,7 @@ export function buildApp(deps: AppDeps): App {
         return reply.status(404).send({ message: 'Agent tidak ditemukan' });
       }
       const stopped = runs.stopAgent(runId, agentId);
+      if (stopped) instructions.cancelQueued(runId, agentId);
       return reply
         .status(stopped ? 202 : 409)
         .send(
@@ -105,6 +122,61 @@ export function buildApp(deps: AppDeps): App {
         );
     },
   );
+
+  // ---- Roadmap ----
+  fastify.get<{ Params: { runId: string } }>('/runs/:runId/roadmap', async (req, reply) => {
+    if (!repo.getRun(req.params.runId))
+      return reply.status(404).send({ message: 'Run tidak ditemukan' });
+    return roadmap.list(req.params.runId);
+  });
+
+  fastify.post<{ Params: { runId: string } }>('/runs/:runId/roadmap', async (req, reply) => {
+    const parsed = createRoadmapItemSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues);
+    const result = roadmap.create(req.params.runId, parsed.data);
+    if (typeof result === 'string') {
+      const [code, message] = ROADMAP_ERROR[result];
+      return reply.status(code).send({ message });
+    }
+    return reply.status(201).send(result);
+  });
+
+  fastify.patch<{ Params: { id: string } }>('/roadmap/:id', async (req, reply) => {
+    const parsed = updateRoadmapItemSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues);
+    const result = roadmap.update(req.params.id, parsed.data);
+    if (typeof result === 'string') {
+      const [code, message] = ROADMAP_ERROR[result];
+      return reply.status(code).send({ message });
+    }
+    return result;
+  });
+
+  fastify.delete<{ Params: { id: string } }>('/roadmap/:id', async (req, reply) => {
+    if (!roadmap.remove(req.params.id)) {
+      return reply.status(404).send({ message: 'Item roadmap tidak ditemukan' });
+    }
+    return reply.status(204).send();
+  });
+
+  // ---- Manager Command Layer ----
+  fastify.get<{ Params: { runId: string } }>('/runs/:runId/instructions', async (req, reply) => {
+    if (!repo.getRun(req.params.runId))
+      return reply.status(404).send({ message: 'Run tidak ditemukan' });
+    return instructions.list(req.params.runId);
+  });
+
+  fastify.post<{ Params: { runId: string } }>('/runs/:runId/instructions', async (req, reply) => {
+    const parsed = sendInstructionSchema.safeParse(req.body);
+    if (!parsed.success) return badRequest(reply, parsed.error.issues);
+    const result = instructions.send(req.params.runId, parsed.data.target, parsed.data.text);
+    if (result === 'run_not_found')
+      return reply.status(404).send({ message: 'Run tidak ditemukan' });
+    if (result === 'agent_not_in_run') {
+      return reply.status(400).send({ message: 'Agent tidak ada di run ini' });
+    }
+    return reply.status(202).send(result);
+  });
 
   const io = new SocketServer(fastify.server, { cors: { origin: LOCAL_ORIGIN } });
   io.on('connection', (socket) => {
@@ -120,11 +192,26 @@ export function buildApp(deps: AppDeps): App {
   });
 
   const unsubscribe = bus.subscribe((msg) => {
-    if (msg.kind === 'event') {
-      io.to(`run:${msg.event.runId}`).emit(SOCKET_EVENTS.agentEvent, msg.event);
-    } else {
-      // Ringkasan run dikirim ke semua client (daftar run di header).
-      io.emit(SOCKET_EVENTS.runUpdated, msg.run);
+    switch (msg.kind) {
+      case 'event':
+        io.to(`run:${msg.event.runId}`).emit(SOCKET_EVENTS.agentEvent, msg.event);
+        break;
+      case 'run':
+        // Ringkasan run dikirim ke semua client (daftar run di header).
+        io.emit(SOCKET_EVENTS.runUpdated, msg.run);
+        break;
+      case 'roadmap':
+        io.to(`run:${msg.runId}`).emit(SOCKET_EVENTS.roadmapUpdated, {
+          runId: msg.runId,
+          items: msg.items,
+        });
+        break;
+      case 'instruction':
+        io.to(`run:${msg.instruction.runId}`).emit(
+          SOCKET_EVENTS.instructionUpdated,
+          msg.instruction,
+        );
+        break;
     }
   });
   fastify.addHook('onClose', async () => {

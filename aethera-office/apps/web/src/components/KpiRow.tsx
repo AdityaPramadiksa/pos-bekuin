@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useNow } from '@/hooks/useNow';
 import { formatCompact, formatElapsed, formatNumber } from '@/lib/format';
-import { totalUsage } from '@/store/run-state';
+import { totalUsage, type AgentView } from '@/store/run-state';
 import { useDashboard } from '@/store/store';
 
 function Kpi({
@@ -27,6 +27,31 @@ function Kpi({
       <div className="mt-1 truncate font-mono text-2xl font-bold">{value}</div>
       {sub && <div className="truncate text-xs text-muted">{sub}</div>}
       {children}
+    </div>
+  );
+}
+
+/** Bar bertumpuk porsi token (in + out) tiap agent, warna sesuai agent. */
+function TokenShare({ agents }: { agents: AgentView[] }) {
+  const parts = agents
+    .map((a) => ({ a, n: a.usage.inputTokens + a.usage.outputTokens }))
+    .filter((p) => p.n > 0);
+  const total = parts.reduce((s, p) => s + p.n, 0);
+  if (total === 0) return null;
+  return (
+    <div
+      className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-line"
+      role="img"
+      aria-label={parts.map((p) => `${p.a.def.name} ${formatNumber(p.n)}`).join(', ')}
+      title={parts.map((p) => `${p.a.def.name}: ${formatNumber(p.n)} token`).join('\n')}
+    >
+      {parts.map((p) => (
+        <span
+          key={p.a.def.id}
+          style={{ width: `${(p.n / total) * 100}%`, background: p.a.def.color }}
+          className="h-full border-r border-panel last:border-r-0"
+        />
+      ))}
     </div>
   );
 }
@@ -76,7 +101,9 @@ export function KpiRow() {
         value={formatNumber(usage.inputTokens + usage.outputTokens)}
         sub={`cache baca ${formatCompact(usage.cacheReadTokens)} · tulis ${formatCompact(usage.cacheCreationTokens)}`}
         accent="#ec4899"
-      />
+      >
+        <TokenShare agents={list} />
+      </Kpi>
       <Kpi
         label="Sesi"
         value={formatElapsed(elapsed)}

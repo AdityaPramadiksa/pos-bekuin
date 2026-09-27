@@ -1,7 +1,11 @@
 import { EventEmitter } from 'node:events';
-import type { AgentEvent, RunSummary } from '@aethera/shared';
+import type { AgentEvent, ManagerInstruction, RoadmapItem, RunSummary } from '@aethera/shared';
 
-export type BusMessage = { kind: 'event'; event: AgentEvent } | { kind: 'run'; run: RunSummary };
+export type BusMessage =
+  | { kind: 'event'; event: AgentEvent }
+  | { kind: 'run'; run: RunSummary }
+  | { kind: 'roadmap'; runId: string; items: RoadmapItem[] }
+  | { kind: 'instruction'; instruction: ManagerInstruction };
 
 /**
  * Jalur broadcast event yang sudah tersimpan. Implementasi sekarang in-process; kalau server

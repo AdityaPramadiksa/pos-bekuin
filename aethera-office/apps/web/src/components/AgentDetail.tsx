@@ -18,13 +18,15 @@ export function AgentDetail({ className = '' }: { className?: string }) {
   const agent = useDashboard((s) => (s.selectedAgentId ? s.agents[s.selectedAgentId] : undefined));
   const runId = useDashboard((s) => s.run?.runId);
   const selectAgent = useDashboard((s) => s.selectAgent);
+  const setManagerTarget = useDashboard((s) => s.setManagerTarget);
+  const setRightTab = useDashboard((s) => s.setRightTab);
   const setFilter = useDashboard((s) => s.setFilter);
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
 
   if (!agent || !runId) {
     return (
-      <section className={`panel grid place-items-center p-6 text-center ${className}`}>
+      <section className={`grid flex-1 place-items-center p-6 text-center ${className}`}>
         <div>
           <div className="text-3xl" aria-hidden>
             👆
@@ -129,8 +131,18 @@ export function AgentDetail({ className = '' }: { className?: string }) {
         )}
       </div>
 
-      {running && (
-        <div className="border-t border-line p-3">
+      <div className="flex flex-col gap-2 border-t border-line p-3">
+        <button
+          type="button"
+          onClick={() => {
+            setManagerTarget(agent.def.id);
+            setRightTab('manager');
+          }}
+          className="w-full rounded-lg border border-accent/60 bg-accent/10 py-2 text-sm font-semibold text-violet-200 hover:bg-accent/20"
+        >
+          Beri instruksi ke {agent.def.name}
+        </button>
+        {running && (
           <button
             type="button"
             disabled={stopping}
@@ -139,9 +151,9 @@ export function AgentDetail({ className = '' }: { className?: string }) {
           >
             {stopping ? 'Menghentikan…' : 'Hentikan agent'}
           </button>
-          {stopError && <p className="mt-2 text-xs text-red-300">{stopError}</p>}
-        </div>
-      )}
+        )}
+        {stopError && <p className="text-xs text-red-300">{stopError}</p>}
+      </div>
     </section>
   );
 }
