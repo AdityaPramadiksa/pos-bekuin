@@ -76,8 +76,10 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
 
   const save = useMutation({
     mutationFn: async () => {
+      // Token link online hanya dibaca; diganti lewat halaman Link Order Online, bukan di sini.
+      const { onlineOrderToken: _token, ...editable } = form;
       const body = {
-        ...form,
+        ...editable,
         tagline: form.tagline?.trim() || null,
         address: form.address?.trim() || null,
         phone: form.phone?.trim() || null,
