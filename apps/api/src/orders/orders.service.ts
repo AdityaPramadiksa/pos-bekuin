@@ -331,8 +331,22 @@ export class OrdersService {
     if (discount > subtotal) throw new BadRequestException('Diskon melebihi subtotal');
     // Ongkir pesanan online ikut ditagih (tidak kena diskon).
     const total = subtotal - discount + current.deliveryFee;
-    // Order pelanggan QR: default cara bayar yang dipilih pelanggan.
-    const methodId = dto.paymentMethodId ?? current.paymentMethodId;
+    // Order pelanggan (link online / QR): cara bayar dipilih pelanggan sendiri, admin tidak
+    // bisa menggantinya supaya rekap keuangan sesuai uang yang benar-benar dibayar pelanggan.
+    const customerOrder = isCustomerSource(current.source);
+    if (
+      customerOrder &&
+      dto.paymentMethodId &&
+      current.paymentMethodId &&
+      dto.paymentMethodId !== current.paymentMethodId
+    ) {
+      throw new BadRequestException(
+        'Cara bayar order pelanggan dipilih pelanggan sendiri dan tidak bisa diganti admin',
+      );
+    }
+    const methodId = customerOrder
+      ? (current.paymentMethodId ?? dto.paymentMethodId)
+      : (dto.paymentMethodId ?? current.paymentMethodId);
     if (!methodId) throw new BadRequestException('Pilih metode bayar');
     const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
     if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');

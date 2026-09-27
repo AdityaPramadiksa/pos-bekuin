@@ -157,9 +157,18 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
       canUploadProof: true,
       hasPaymentProof: false,
     });
-    expect(JSON.stringify(view.body)).not.toMatch(/"id"|hpp|createdBy|paymentProofUrl/);
+    // Tidak ada id internal order/user/HPP. Satu-satunya id = pilihan ganti cara bayar
+    // (id metode bayar, yang memang sudah publik di menu pelanggan).
+    const { paymentOptions, ...rest } = view.body;
+    expect(JSON.stringify(rest)).not.toMatch(/"id"|hpp|createdBy|paymentProofUrl/);
+    expect(
+      paymentOptions.every((m: Record<string, unknown>) =>
+        Object.keys(m).every((k) => ['id', 'name', 'type'].includes(k)),
+      ),
+    ).toBe(true);
 
     const saved = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken } });
+    expect(JSON.stringify(view.body)).not.toContain(saved.id);
     expect(saved).toMatchObject({
       source: 'QR_TABLE',
       type: 'DINE_IN',

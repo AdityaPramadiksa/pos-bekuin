@@ -193,6 +193,20 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
+  const changeMethod = useMutation({
+    mutationFn: async (paymentMethodId: string) =>
+      (
+        await publicApi.post<PublicOrderView>(`/public/orders/${o.publicToken}/payment-method`, {
+          paymentMethodId,
+        })
+      ).data,
+    onSuccess: (data) => {
+      setData(data);
+      toast.success(`Cara bayar diganti ke ${data.payment.methodName ?? ''}`);
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
   const cancel = useMutation({
     mutationFn: async () =>
       (await publicApi.post<PublicOrderView>(`/public/orders/${o.publicToken}/cancel`)).data,
@@ -231,7 +245,13 @@ function Tracking({ order: o }: { order: PublicOrderView }) {
       </section>
 
       {o.status === 'PENDING' && (
-        <PaymentPanel order={o} uploading={upload.isPending} onUpload={(f) => upload.mutate(f)} />
+        <PaymentPanel
+          order={o}
+          uploading={upload.isPending}
+          onUpload={(f) => upload.mutate(f)}
+          changingMethod={changeMethod.isPending}
+          onChangeMethod={(id) => changeMethod.mutate(id)}
+        />
       )}
 
       {o.status === 'PAID' && (

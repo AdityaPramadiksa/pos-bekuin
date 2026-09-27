@@ -118,9 +118,11 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   const total = Math.max(0, subtotal - discount) + order.deliveryFee;
   // Order pelanggan QR sudah final: isi & diskon dikunci, cara bayar dari pilihan pelanggan.
   const isCustomerOrder = order.source === 'QR_TABLE' || order.source === 'ONLINE';
-  const [changingMethod, setChangingMethod] = useState(false);
+  // Cara bayar order pelanggan dipilih pelanggan sendiri; admin tinggal cek bukti & approve.
+  const customerMethodLocked = isCustomerOrder && !!order.paymentMethod;
   // Uang belum diterima: COD / bayar saat ambil (order tetap diproses, ditandai lunas nanti).
-  const [payLater, setPayLater] = useState(order.source === 'ONLINE' && order.payAtCashier);
+  // Order pelanggan tunai selalu COD; order staff/WA dipilih admin.
+  const [payLater, setPayLater] = useState(isCustomerOrder && order.payAtCashier);
   const selectedMethodId = methodId ?? order.paymentMethod?.id ?? null;
   const method = methods.data?.find((m) => m.id === selectedMethodId) ?? null;
   const isCash = method?.type === 'CASH';
@@ -439,18 +441,13 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         </label>
       )}
       {/* Metode bayar: order pelanggan memakai pilihannya, admin cukup mengecek. */}
-      {isCustomerOrder && method && !changingMethod ? (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-stone-200 px-3 py-2.5">
-          <div>
-            <p className="text-xs text-stone-500">Dibayar pelanggan dengan</p>
-            <p className="font-semibold">{method.name}</p>
-          </div>
-          <button
-            className="text-xs font-medium text-stone-500 underline"
-            onClick={() => setChangingMethod(true)}
-          >
-            Pelanggan ganti cara bayar?
-          </button>
+      {customerMethodLocked ? (
+        <div className="rounded-xl border border-stone-200 px-3 py-2.5">
+          <p className="text-xs text-stone-500">Cara bayar dipilih pelanggan</p>
+          <p className="font-semibold">
+            {order.paymentMethod!.name}
+            {payLater ? ' · bayar saat diterima (COD)' : ''}
+          </p>
         </div>
       ) : (
         <div>
@@ -476,8 +473,8 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           </div>
         </div>
       )}
-      {/* Kapan uang diterima: sekarang, atau nanti (COD / bayar saat ambil / ditagih). */}
-      {method && (
+      {/* Order staff/WA: kapan uang diterima, sekarang atau nanti (COD / ditagih). */}
+      {method && !isCustomerOrder && (
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 text-sm">
           {[
             { later: false, label: 'Sudah dibayar' },

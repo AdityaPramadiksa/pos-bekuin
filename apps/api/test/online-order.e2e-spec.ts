@@ -273,6 +273,55 @@ describe('Link order online (e2e)', () => {
     await lookup(Array.from({ length: 51 }, (_, i) => `t${i}`)).expect(400);
   });
 
+  it('pelanggan bisa ganti cara bayar sebelum kirim bukti; admin tidak bisa menggantinya', async () => {
+    const res = await order({ customerPhone: '0819 5555 6666', paymentMethodId: qrisId });
+    expect(res.status).toBe(201);
+    const token: string = res.body.publicToken;
+    const change = (paymentMethodId: string) =>
+      api().post(`/api/v1/public/orders/${token}/payment-method`).send({ paymentMethodId });
+
+    const view = (await api().get(`/api/v1/public/orders/${token}`).expect(200)).body;
+    expect(view.paymentOptions.map((m: { id: string }) => m.id)).toEqual(
+      expect.arrayContaining([qrisId, cashId]),
+    );
+    await change('metode-ngasal').expect(400);
+    const toCash = await change(cashId).expect(200);
+    expect(toCash.body.payment).toMatchObject({ type: 'CASH' });
+    expect(toCash.body.payAtCashier).toBe(true);
+    const back = await change(qrisId).expect(200);
+    expect(back.body.payment.type).toBe('QRIS');
+    expect(back.body.canUploadProof).toBe(true);
+
+    // Admin tidak bisa mengganti cara bayar pilihan pelanggan saat approve.
+    const saved = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken: token } });
+    const override = await admin
+      .as(api().post(`/api/v1/orders/${saved.id}/approve`))
+      .send({ paymentMethodId: cashId, confirmWithoutProof: true, paidAmount: 50000 })
+      .expect(400);
+    expect(override.body.message).toMatch(/dipilih pelanggan/);
+
+    // Setelah bukti bayar dikirim, cara bayar dikunci.
+    await ctx.prisma.order.update({
+      where: { id: saved.id },
+      data: { paymentProofUrl: '/uploads/proof/uji.webp' },
+    });
+    const locked = await change(cashId).expect(400);
+    expect(locked.body.message).toMatch(/Bukti bayar sudah dikirim/);
+    const lockedView = (await api().get(`/api/v1/public/orders/${token}`).expect(200)).body;
+    expect(lockedView.paymentOptions).toEqual([]);
+
+    // Admin cukup approve tanpa memilih metode: tercatat QRIS pilihan pelanggan.
+    const ok = await admin
+      .as(api().post(`/api/v1/orders/${saved.id}/approve`))
+      .send({})
+      .expect(200);
+    expect(ok.body.paymentMethod.id).toBe(qrisId);
+    const logs = await ctx.prisma.orderLog.findMany({
+      where: { orderId: saved.id, action: 'PAYMENT_METHOD_CHANGED' },
+    });
+    expect(logs).toHaveLength(2);
+  });
+
   it('pelanggan bisa membatalkan pesanan online yang belum dibayar', async () => {
     const pickup = created[2];
     const res = await api().post(`/api/v1/public/orders/${pickup}/cancel`).expect(200);

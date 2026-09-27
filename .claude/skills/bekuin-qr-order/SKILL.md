@@ -43,6 +43,7 @@ PENDING → (admin setujui / QRIS terdeteksi) PAID + PROCESSING ("Diproses") →
 - QRIS tanpa kode unik: nominal = total (order lama tetap memakai `uniqueCode`).
 - Order pelanggan (`QR_TABLE`/`ONLINE`) QRIS/Transfer tanpa `paymentProofUrl` hanya bisa di-approve dengan `confirmWithoutProof: true` (admin menyatakan sudah mengecek uang masuk). Approve massal menolaknya.
 - Transfer tampil ke pelanggan hanya bila ada `bank_accounts` aktif; `GET /public/orders/:publicToken` menyertakan `payment.bankAccounts`.
+- Cara bayar order pelanggan dikunci ke pilihan pelanggan: approve dengan `paymentMethodId` berbeda → 400 (v2.5). Pelanggan boleh ganti sendiri lewat `POST /public/orders/:publicToken/payment-method` selama PENDING & belum ada bukti bayar (`paymentOptions` di view publik kosong bila tidak bisa).
 
 ## Riwayat pesanan pelanggan
 - `POST /public/orders/lookup { tokens }` (maks 50, throttle 30/menit) → ringkasan pesanan `QR_TABLE`/`ONLINE` untuk token yang disimpan di HP pelanggan (localStorage 90 hari). Tanpa No. WA/data pribadi di respons.

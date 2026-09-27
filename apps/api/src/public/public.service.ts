@@ -386,6 +386,11 @@ export class PublicService {
         bankAccounts,
       },
       canUploadProof: pending && type !== 'CASH' && isCustomerSource(order.source),
+      // Ganti cara bayar: selama menunggu & belum kirim bukti bayar.
+      paymentOptions:
+        pending && !order.paymentProofUrl && isCustomerSource(order.source)
+          ? await this.customerPaymentMethods()
+          : [],
     };
   }
 
@@ -422,6 +427,41 @@ export class PublicService {
       tableName: o.table?.name ?? null,
       createdAt: o.createdAt.toISOString(),
     }));
+  }
+
+  /**
+   * Pelanggan mengganti cara bayar selama pesanan masih menunggu dan belum mengirim bukti bayar
+   * (bukti yang sudah dikirim milik cara bayar lama; minta toko bila perlu mengganti).
+   */
+  async changePaymentMethod(
+    publicToken: string,
+    paymentMethodId: string,
+  ): Promise<PublicOrderView> {
+    const order = await this.prisma.order.findUnique({ where: { publicToken } });
+    if (!order || !isCustomerSource(order.source))
+      throw new NotFoundException('Pesanan tidak ditemukan');
+    const method = (await this.customerPaymentMethods()).find((m) => m.id === paymentMethodId);
+    if (!method) throw new BadRequestException('Cara bayar ini tidak tersedia. Pilih yang lain.');
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await this.orders.lockPending(tx, order.id, null);
+      if (locked.paymentProofUrl) {
+        throw new BadRequestException(
+          'Bukti bayar sudah dikirim. Hubungi toko bila ingin mengganti cara bayar.',
+        );
+      }
+      if (locked.paymentMethodId === method.id) return;
+      await this.assignPayment(tx, order.id, method);
+      await tx.orderLog.create({
+        data: {
+          orderId: order.id,
+          action: 'PAYMENT_METHOD_CHANGED',
+          reason: `Pelanggan ganti cara bayar ke ${method.name}`,
+          userId: null,
+        },
+      });
+    });
+    await this.orders.afterWrite(order.id, null, 'order.updated');
+    return this.getOrder(publicToken);
   }
 
   async uploadProof(

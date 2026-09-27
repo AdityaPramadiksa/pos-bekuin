@@ -117,6 +117,8 @@ export interface PublicOrderView {
   canCancel: boolean;
   /** QRIS/Transfer: pelanggan wajib mengunggah bukti bayar sebelum pesanan diproses. */
   canUploadProof: boolean;
+  /** Pilihan untuk mengganti cara bayar (kosong bila tidak bisa diganti lagi). */
+  paymentOptions: PublicPaymentMethod[];
 }
 
 export interface PublicBankAccount {
