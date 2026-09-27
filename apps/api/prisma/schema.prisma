@@ -169,6 +169,8 @@ model Setting {
   /// Self-order QR meja (sementara dinonaktifkan sejak v2.4).
   qrOrderingEnabled      Boolean  @default(false)
   qrMaxOrderTotal        Int      @default(1000000)
+  /// Pesanan pelanggan QRIS/Transfer tanpa bukti bayar dibatalkan otomatis setelah sekian jam (0 = tidak).
+  unpaidCancelHours      Int      @default(24)
   /// Link order online: /pesan/<onlineOrderToken> (bisa diganti bila disalahgunakan).
   onlineOrderToken       String?  @unique
   onlineOrderingEnabled  Boolean  @default(true)

@@ -117,6 +117,20 @@ sh scripts/restore-db.sh backups/db/bekuin-20260925-0200.dump \
 
 ---
 
+### Lupa password
+
+- **Staff/admin lain lupa password:** admin membuka **Lainnya → Pengguna → pilih user → Reset password**. User wajib mengganti password saat login berikutnya.
+- **Satu-satunya admin lupa password:** jalankan perintah darurat di server. Password sementara dicetak ke layar, semua sesi login lama dicabut, dan aplikasi meminta password baru saat login.
+
+```bash
+# daftar username
+docker compose -f docker-compose.prod.yml --env-file deploy/.env exec api node dist-seed/reset-password.js
+# reset (password sementara acak), atau isi sendiri sebagai argumen kedua (min. 8 karakter)
+docker compose -f docker-compose.prod.yml --env-file deploy/.env exec api node dist-seed/reset-password.js admin
+```
+
+Di laptop (pengembangan): `pnpm --filter @bekuin/api user:reset-password admin`.
+
 ## B. Railway + Neon + Vercel
 
 Cocok bila tidak ingin mengurus server. Web dan API berbeda domain, jadi CORS perlu diatur.

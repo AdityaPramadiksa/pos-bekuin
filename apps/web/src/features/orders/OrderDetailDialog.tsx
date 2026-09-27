@@ -133,7 +133,10 @@ export function OrderDetailDialog({
               <dt className="text-stone-500">Tanggal kirim</dt>
               <dd>{formatDateKey(o.deliveryDate)}</dd>
               <dt className="text-stone-500">Dibuat oleh</dt>
-              <dd>{o.createdBy?.name ?? 'Pelanggan (QR)'}</dd>
+              <dd>
+                {o.createdBy?.name ??
+                  (o.source === 'ONLINE' ? 'Pelanggan (link online)' : 'Pelanggan (QR)')}
+              </dd>
               {o.approvedBy && (
                 <>
                   <dt className="text-stone-500">Disetujui</dt>

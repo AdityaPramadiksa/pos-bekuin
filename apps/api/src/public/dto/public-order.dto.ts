@@ -123,3 +123,7 @@ export class LookupOrdersDto {
   @MaxLength(40, { each: true })
   tokens: string[];
 }
+
+export class ChangePaymentMethodDto {
+  @ApiProperty() @IsString() @MaxLength(40) paymentMethodId: string;
+}

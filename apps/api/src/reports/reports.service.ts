@@ -192,7 +192,7 @@ export class ReportsService {
       byStaff: groupOrders(
         orders,
         (o) => o.staffName ?? '-',
-        (o) => o.staffName ?? 'Pelanggan (QR)',
+        (o) => o.staffName ?? 'Pelanggan (online/QR)',
       ),
       byHour: salesByHour(orders),
       byDay: salesByDay(orders, range.from, range.to),

@@ -24,7 +24,7 @@ Spesifikasi lengkap ada di [PRD.md](PRD.md).
 
 **Pelanggan (tanpa akun)**
 - Self-order QR meja (sementara dinonaktifkan)
-- **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/Transfer (unggah bukti bayar) atau COD, lacak status & **riwayat pesanan**
+- **Link order online** untuk pelanggan dari rumah: kirim link/QR lewat WhatsApp/Instagram → pilih menu, ambil sendiri/diantar (ongkir otomatis), tanggal kirim, bayar QRIS/Transfer (unggah bukti bayar, bisa ganti cara bayar) atau COD, tanda **stok terbatas/habis**, lacak status & **riwayat pesanan**; pesanan tanpa bukti bayar batal otomatis (default 24 jam)
 
 ## Tampilan
 
@@ -144,6 +144,7 @@ Pelanggan: buka **Lainnya → Meja & QR**, lalu klik link/scan QR salah satu mej
 | `pnpm build` | Build produksi |
 | `pnpm db:migrate` / `db:seed` / `db:reset` / `db:studio` | Database |
 | `pnpm --filter @bekuin/api push:keys` | Buat VAPID key untuk notifikasi push |
+| `pnpm --filter @bekuin/api user:reset-password <username>` | Reset password darurat (mis. admin lupa password); di server lihat [DEPLOY](docs/DEPLOY.md#lupa-password) |
 
 ## Deploy & operasional
 

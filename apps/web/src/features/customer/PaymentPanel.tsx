@@ -1,9 +1,10 @@
 import { formatRupiah, type PublicOrderView } from '@bekuin/shared';
-import { Banknote, CheckCircle2, Copy, ImageUp } from 'lucide-react';
-import { useRef } from 'react';
+import { ArrowLeftRight, Banknote, CheckCircle2, Copy, ImageUp } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { QrisCode } from '@/components/QrisCode';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/features/orders/order-format';
 import { assetUrl } from '@/lib/api';
 
 async function copy(text: string) {
@@ -20,21 +21,40 @@ export function PaymentPanel({
   order: o,
   uploading,
   onUpload,
+  changingMethod,
+  onChangeMethod,
 }: {
   order: PublicOrderView;
   uploading: boolean;
   onUpload: (file: File) => void;
+  changingMethod: boolean;
+  onChangeMethod: (paymentMethodId: string) => void;
 }) {
   const p = o.payment;
+  const switcher = <MethodSwitcher order={o} changing={changingMethod} onChange={onChangeMethod} />;
 
   if (p.type === 'CASH') {
     return (
       <section className="space-y-2 rounded-2xl bg-white p-4 text-center shadow-sm">
+        {switcher}
         <Banknote className="text-brand-700 mx-auto size-8" />
-        <p className="text-sm text-stone-600">Bayar tunai ke kasir</p>
+        <p className="text-sm text-stone-600">
+          {o.delivery
+            ? o.delivery.method === 'DELIVERY'
+              ? 'Bayar tunai ke kurir saat pesanan sampai (COD)'
+              : 'Bayar tunai saat ambil pesanan'
+            : 'Bayar tunai ke kasir'}
+        </p>
         <p className="text-brand-700 text-3xl font-bold">{formatRupiah(p.amount)}</p>
         <p className="text-sm text-stone-600">
-          Sebutkan nomor pesanan <b>{o.orderNo}</b>. Pesanan diproses setelah pembayaran diterima.
+          {o.delivery ? (
+            'Siapkan uang pas ya. Tidak perlu unggah bukti bayar, tunggu konfirmasi toko.'
+          ) : (
+            <>
+              Sebutkan nomor pesanan <b>{o.orderNo}</b>. Pesanan diproses setelah pembayaran
+              diterima.
+            </>
+          )}
         </p>
       </section>
     );
@@ -42,6 +62,7 @@ export function PaymentPanel({
 
   return (
     <section className="space-y-3 rounded-2xl bg-white p-4 text-center shadow-sm">
+      {switcher}
       <p className="text-sm text-stone-600">Bayar tepat</p>
       <div className="flex items-center justify-center gap-2">
         <p className="text-brand-700 text-3xl font-bold">{formatRupiah(p.amount)}</p>
@@ -131,6 +152,59 @@ export function PaymentPanel({
   );
 }
 
+/** Cara bayar yang dipilih + tombol ganti (selama pesanan menunggu & belum kirim bukti bayar). */
+function MethodSwitcher({
+  order: o,
+  changing,
+  onChange,
+}: {
+  order: PublicOrderView;
+  changing: boolean;
+  onChange: (paymentMethodId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const others = o.paymentOptions.filter((m) => m.name !== o.payment.methodName);
+  return (
+    <div className="rounded-xl border border-stone-200 p-3 text-left">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs text-stone-500">Cara bayar</p>
+          <p className="font-semibold">{o.payment.methodName ?? '-'}</p>
+        </div>
+        {others.length > 0 && (
+          <Button size="sm" variant="outline" onClick={() => setOpen(!open)}>
+            <ArrowLeftRight className="size-4" /> Ganti
+          </Button>
+        )}
+      </div>
+      {open && others.length > 0 && (
+        <div className="mt-3 space-y-2 border-t border-stone-100 pt-3">
+          <p className="text-xs text-stone-500">Ganti ke:</p>
+          <div className="grid grid-cols-2 gap-2">
+            {others.map((m) => (
+              <Button
+                key={m.id}
+                variant="outline"
+                loading={changing}
+                onClick={() => {
+                  onChange(m.id);
+                  setOpen(false);
+                }}
+              >
+                {m.type === 'CASH' ? `${m.name} (bayar saat terima)` : m.name}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-stone-500">
+            Belum bayar? Ganti dulu sebelum membayar. Setelah bukti bayar dikirim, cara bayar tidak
+            bisa diganti lagi.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** QRIS/Transfer: pelanggan wajib mengunggah bukti bayar; admin mengeceknya sebelum memproses. */
 function ProofUpload({
   order: o,
@@ -152,6 +226,12 @@ function ProofUpload({
         <p className="rounded-xl bg-amber-50 p-3 text-left text-sm text-amber-900">
           <b>Wajib:</b> setelah bayar, unggah screenshot bukti bayar. Pesanan baru diproses setelah
           admin mengecek uangnya masuk.
+          {o.payDeadline && (
+            <span className="mt-1 block font-semibold">
+              Batas unggah: {formatDateTime(o.payDeadline)}. Lewat dari itu pesanan otomatis
+              dibatalkan.
+            </span>
+          )}
         </p>
       )}
       <Button

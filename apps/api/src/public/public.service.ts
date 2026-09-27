@@ -12,6 +12,7 @@ import {
   type PublicMenuResponse,
   type PublicOrderCreated,
   type PublicOrderSummary,
+  type StockLevel,
   type PublicOrderView,
 } from '@bekuin/shared';
 import type { DiningTable, PaymentType, Prisma, Setting } from '@prisma/client';
@@ -20,6 +21,7 @@ import { CatalogService } from '../menu/catalog.service';
 import { orderInclude } from '../orders/order-mapper';
 import { isCustomerSource } from '../orders/order-pricing';
 import { OrdersService } from '../orders/orders.service';
+import { payDeadline } from '../orders/unpaid-orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { UploadsService } from '../uploads/uploads.service';
@@ -42,6 +44,26 @@ function storeStatus(s: Setting | null): { isOpen: boolean; closedReason: string
   }
   return { isOpen: true, closedReason: null };
 }
+
+/** Stok varian hari ini untuk pelanggan: dibawah 3 pack dianggap terbatas. */
+export function variantStock(
+  p: { isAvailable: boolean; availablePcs: number },
+  packSize: number,
+  channel: 'table' | 'online',
+): { available: boolean; stockLevel: StockLevel } {
+  const stockLevel: StockLevel =
+    !p.isAvailable || p.availablePcs < packSize
+      ? 'SOLD_OUT'
+      : p.availablePcs < packSize * LIMITED_PACKS
+        ? 'LIMITED'
+        : 'OK';
+  return {
+    // Toggle "Habis" manual selalu menutup; stok habis hari ini masih bisa pre-order lewat link.
+    available: p.isAvailable && (channel === 'online' || stockLevel !== 'SOLD_OUT'),
+    stockLevel,
+  };
+}
+const LIMITED_PACKS = 3;
 
 @Injectable()
 export class PublicService {
@@ -87,7 +109,7 @@ export class PublicService {
     const [table, settings, base] = await Promise.all([
       this.findTable(qrToken),
       this.prisma.setting.findUnique({ where: { id: 'default' } }),
-      this.menuBase(),
+      this.menuBase('table'),
     ]);
     return {
       store: {
@@ -106,7 +128,10 @@ export class PublicService {
 
   /** Menu untuk link order online: selalu bisa pre-order, hari ini hanya saat toko buka. */
   async onlineMenu(onlineToken: string): Promise<PublicMenuResponse> {
-    const [settings, base] = await Promise.all([this.onlineSettings(onlineToken), this.menuBase()]);
+    const [settings, base] = await Promise.all([
+      this.onlineSettings(onlineToken),
+      this.menuBase('online'),
+    ]);
     const hours = (settings.openingHours as OpeningHours | null) ?? null;
     const openNow = settings.isStoreOpen && isWithinOpeningHours(hours);
     return {
@@ -135,10 +160,14 @@ export class PublicService {
     };
   }
 
-  /** Kategori, produk, dan cara bayar yang boleh dilihat pelanggan. */
-  private async menuBase(): Promise<
-    Pick<PublicMenuResponse, 'categories' | 'products' | 'paymentMethods'>
-  > {
+  /**
+   * Kategori, produk, dan cara bayar yang boleh dilihat pelanggan. Stok ditampilkan sebagai tingkat
+   * (tersedia / terbatas / habis), tidak pernah angka persis. Link online boleh memesan varian yang
+   * habis hari ini untuk tanggal lain (pre-order); QR meja hanya untuk hari ini.
+   */
+  private async menuBase(
+    channel: 'table' | 'online',
+  ): Promise<Pick<PublicMenuResponse, 'categories' | 'products' | 'paymentMethods'>> {
     const [catalog, categories, paymentMethods] = await Promise.all([
       this.catalog.get(),
       this.prisma.salesCategory.findMany({
@@ -166,7 +195,7 @@ export class PublicService {
               categoryCode: v.categoryCode,
               packSize: v.packSize,
               price: v.price,
-              available: p.isAvailable && p.availablePcs >= v.packSize,
+              ...variantStock(p, v.packSize, channel),
             })),
         }))
         .filter((p) => p.variants.length > 0),
@@ -386,6 +415,16 @@ export class PublicService {
         bankAccounts,
       },
       canUploadProof: pending && type !== 'CASH' && isCustomerSource(order.source),
+      // Batas waktu unggah bukti bayar sebelum pesanan dibatalkan otomatis.
+      payDeadline:
+        pending && type !== 'CASH' && !order.paymentProofUrl && isCustomerSource(order.source)
+          ? (payDeadline(order, settings?.unpaidCancelHours ?? 24)?.toISOString() ?? null)
+          : null,
+      // Ganti cara bayar: selama menunggu & belum kirim bukti bayar.
+      paymentOptions:
+        pending && !order.paymentProofUrl && isCustomerSource(order.source)
+          ? await this.customerPaymentMethods()
+          : [],
     };
   }
 
@@ -422,6 +461,41 @@ export class PublicService {
       tableName: o.table?.name ?? null,
       createdAt: o.createdAt.toISOString(),
     }));
+  }
+
+  /**
+   * Pelanggan mengganti cara bayar selama pesanan masih menunggu dan belum mengirim bukti bayar
+   * (bukti yang sudah dikirim milik cara bayar lama; minta toko bila perlu mengganti).
+   */
+  async changePaymentMethod(
+    publicToken: string,
+    paymentMethodId: string,
+  ): Promise<PublicOrderView> {
+    const order = await this.prisma.order.findUnique({ where: { publicToken } });
+    if (!order || !isCustomerSource(order.source))
+      throw new NotFoundException('Pesanan tidak ditemukan');
+    const method = (await this.customerPaymentMethods()).find((m) => m.id === paymentMethodId);
+    if (!method) throw new BadRequestException('Cara bayar ini tidak tersedia. Pilih yang lain.');
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await this.orders.lockPending(tx, order.id, null);
+      if (locked.paymentProofUrl) {
+        throw new BadRequestException(
+          'Bukti bayar sudah dikirim. Hubungi toko bila ingin mengganti cara bayar.',
+        );
+      }
+      if (locked.paymentMethodId === method.id) return;
+      await this.assignPayment(tx, order.id, method);
+      await tx.orderLog.create({
+        data: {
+          orderId: order.id,
+          action: 'PAYMENT_METHOD_CHANGED',
+          reason: `Pelanggan ganti cara bayar ke ${method.name}`,
+          userId: null,
+        },
+      });
+    });
+    await this.orders.afterWrite(order.id, null, 'order.updated');
+    return this.getOrder(publicToken);
   }
 
   async uploadProof(

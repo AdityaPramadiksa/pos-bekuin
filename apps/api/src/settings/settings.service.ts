@@ -29,6 +29,7 @@ function toView(s: Setting): SettingsView {
     openingHours: (s.openingHours as OpeningHours | null) ?? null,
     qrOrderingEnabled: s.qrOrderingEnabled,
     qrMaxOrderTotal: s.qrMaxOrderTotal,
+    unpaidCancelHours: s.unpaidCancelHours,
     blockApproveOnLowStock: s.blockApproveOnLowStock,
     paperWidthChars: s.paperWidthChars,
     onlineOrderToken: s.onlineOrderToken,

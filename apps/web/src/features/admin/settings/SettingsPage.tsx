@@ -247,6 +247,25 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
             onChange={(v) => set('qrMaxOrderTotal', v === '' ? 0 : v)}
           />
         </Field>
+        <Field
+          label="Batal otomatis bila belum ada bukti bayar (jam)"
+          hint={
+            form.unpaidCancelHours
+              ? `Pesanan QRIS/Transfer tanpa bukti bayar dibatalkan setelah ${form.unpaidCancelHours} jam. COD tidak terpengaruh.`
+              : 'Isi 0 bila tidak ingin pesanan dibatalkan otomatis'
+          }
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={168}
+            value={form.unpaidCancelHours}
+            onChange={(e) =>
+              set('unpaidCancelHours', Math.min(168, Math.max(0, Number(e.target.value) || 0)))
+            }
+          />
+        </Field>
       </Section>
 
       <Section title="Stok">

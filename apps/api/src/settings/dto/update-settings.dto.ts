@@ -58,6 +58,13 @@ export class UpdateSettingsDto {
   @Max(100_000_000)
   qrMaxOrderTotal?: number;
 
+  @ApiPropertyOptional({ description: 'Batal otomatis pesanan tanpa bukti bayar (jam, 0 = tidak)' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(168)
+  unpaidCancelHours?: number;
+
   @ApiPropertyOptional() @IsOptional() @IsBoolean() onlineOrderingEnabled?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() deliveryEnabled?: boolean;
 

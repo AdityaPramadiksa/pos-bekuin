@@ -17,6 +17,7 @@ import { Public } from '../auth/decorators/public.decorator';
 import { PublicThrottlerGuard } from '../common/public-throttler.guard';
 import {
   CreateOnlineOrderDto,
+  ChangePaymentMethodDto,
   CreatePublicOrderDto,
   LookupOrdersDto,
 } from './dto/public-order.dto';
@@ -83,6 +84,16 @@ export class PublicController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.publicService.uploadProof(publicToken, file);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 10 * 60_000 } })
+  @Post('orders/:publicToken/payment-method')
+  @HttpCode(200)
+  changePaymentMethod(
+    @Param('publicToken') publicToken: string,
+    @Body() dto: ChangePaymentMethodDto,
+  ) {
+    return this.publicService.changePaymentMethod(publicToken, dto.paymentMethodId);
   }
 
   @Throttle({ default: { limit: 10, ttl: 10 * 60_000 } })

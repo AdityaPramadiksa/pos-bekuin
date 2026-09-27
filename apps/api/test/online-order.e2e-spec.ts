@@ -2,6 +2,7 @@
  * Link order online: pelanggan tanpa meja pesan sendiri (ambil/antar), pilih tanggal kirim,
  * ongkir tetap + gratis ongkir, bayar QRIS/COD, batas pesanan menunggu per No. WA.
  */
+import { UnpaidOrdersService } from '../src/orders/unpaid-orders.service';
 import { createTestContext } from './helpers';
 
 describe('Link order online (e2e)', () => {
@@ -271,6 +272,126 @@ describe('Link order online (e2e)', () => {
     expect(times).toEqual([...times].sort().reverse());
     await lookup([]).expect(400);
     await lookup(Array.from({ length: 51 }, (_, i) => `t${i}`)).expect(400);
+  });
+
+  it('pelanggan bisa ganti cara bayar sebelum kirim bukti; admin tidak bisa menggantinya', async () => {
+    const res = await order({ customerPhone: '0819 5555 6666', paymentMethodId: qrisId });
+    expect(res.status).toBe(201);
+    const token: string = res.body.publicToken;
+    const change = (paymentMethodId: string) =>
+      api().post(`/api/v1/public/orders/${token}/payment-method`).send({ paymentMethodId });
+
+    const view = (await api().get(`/api/v1/public/orders/${token}`).expect(200)).body;
+    expect(view.paymentOptions.map((m: { id: string }) => m.id)).toEqual(
+      expect.arrayContaining([qrisId, cashId]),
+    );
+    await change('metode-ngasal').expect(400);
+    const toCash = await change(cashId).expect(200);
+    expect(toCash.body.payment).toMatchObject({ type: 'CASH' });
+    expect(toCash.body.payAtCashier).toBe(true);
+    const back = await change(qrisId).expect(200);
+    expect(back.body.payment.type).toBe('QRIS');
+    expect(back.body.canUploadProof).toBe(true);
+
+    // Admin tidak bisa mengganti cara bayar pilihan pelanggan saat approve.
+    const saved = await ctx.prisma.order.findUniqueOrThrow({ where: { publicToken: token } });
+    const override = await admin
+      .as(api().post(`/api/v1/orders/${saved.id}/approve`))
+      .send({ paymentMethodId: cashId, confirmWithoutProof: true, paidAmount: 50000 })
+      .expect(400);
+    expect(override.body.message).toMatch(/dipilih pelanggan/);
+
+    // Setelah bukti bayar dikirim, cara bayar dikunci.
+    await ctx.prisma.order.update({
+      where: { id: saved.id },
+      data: { paymentProofUrl: '/uploads/proof/uji.webp' },
+    });
+    const locked = await change(cashId).expect(400);
+    expect(locked.body.message).toMatch(/Bukti bayar sudah dikirim/);
+    const lockedView = (await api().get(`/api/v1/public/orders/${token}`).expect(200)).body;
+    expect(lockedView.paymentOptions).toEqual([]);
+
+    // Admin cukup approve tanpa memilih metode: tercatat QRIS pilihan pelanggan.
+    const ok = await admin
+      .as(api().post(`/api/v1/orders/${saved.id}/approve`))
+      .send({})
+      .expect(200);
+    expect(ok.body.paymentMethod.id).toBe(qrisId);
+    const logs = await ctx.prisma.orderLog.findMany({
+      where: { orderId: saved.id, action: 'PAYMENT_METHOD_CHANGED' },
+    });
+    expect(logs).toHaveLength(2);
+  });
+
+  it('menu online menandai stok terbatas / habis hari ini tanpa angka persis', async () => {
+    const menu = async () =>
+      (await api().get(`/api/v1/public/online/${token}/menu`).expect(200)).body.products.find(
+        (p: { id: string }) => p.id === productId,
+      ).variants[0];
+    const setStock = (stockPcs: number) =>
+      ctx.prisma.product.update({ where: { id: productId }, data: { stockPcs } });
+    await setStock(1000);
+    expect(await menu()).toMatchObject({ available: true, stockLevel: 'OK' });
+    await setStock(10);
+    expect(await menu()).toMatchObject({ available: true, stockLevel: 'LIMITED' });
+    // Habis hari ini: masih bisa dipesan untuk tanggal lain (pre-order).
+    await setStock(0);
+    const out = await menu();
+    expect(out).toMatchObject({ available: true, stockLevel: 'SOLD_OUT' });
+    expect(out).not.toHaveProperty('availablePcs');
+    await ctx.prisma.product.update({ where: { id: productId }, data: { isAvailable: false } });
+    expect(await menu()).toMatchObject({ available: false, stockLevel: 'SOLD_OUT' });
+    await ctx.prisma.product.update({
+      where: { id: productId },
+      data: { isAvailable: true, stockPcs: 200 },
+    });
+  });
+
+  it('pesanan QRIS tanpa bukti bayar dibatalkan otomatis setelah batas jam', async () => {
+    await settings({ unpaidCancelHours: 24 });
+    const make = async (phone: string, body: Record<string, unknown> = {}) => {
+      const res = await order({ customerPhone: phone, ...body });
+      expect(res.status).toBe(201);
+      return ctx.prisma.order.findUniqueOrThrow({ where: { publicToken: res.body.publicToken } });
+    };
+    const expired = await make('0817 1000 0001');
+    const withProof = await make('0817 1000 0002');
+    const cod = await make('0817 1000 0003', { paymentMethodId: cashId });
+    const fresh = await make('0817 1000 0004');
+
+    const view = (await api().get(`/api/v1/public/orders/${expired.publicToken}`).expect(200)).body;
+    expect(new Date(view.payDeadline).getTime() - expired.createdAt.getTime()).toBe(24 * 3_600_000);
+
+    const old = new Date(Date.now() - 25 * 3_600_000);
+    await ctx.prisma.order.updateMany({
+      where: { id: { in: [expired.id, withProof.id, cod.id] } },
+      data: { createdAt: old },
+    });
+    await ctx.prisma.order.update({
+      where: { id: withProof.id },
+      data: { paymentProofUrl: '/uploads/proof/uji.webp' },
+    });
+
+    const unpaid = ctx.app.get(UnpaidOrdersService);
+    await settings({ unpaidCancelHours: 0 }); // 0 = tidak pernah batal otomatis
+    expect(await unpaid.cancelExpired()).toBe(0);
+    await settings({ unpaidCancelHours: 24 });
+    expect(await unpaid.cancelExpired()).toBeGreaterThanOrEqual(1);
+
+    const status = async (id: string) =>
+      ctx.prisma.order.findUniqueOrThrow({ where: { id }, select: { status: true, reason: true } });
+    expect(await status(expired.id)).toMatchObject({
+      status: 'CANCELLED',
+      reason: 'Otomatis dibatalkan: belum ada bukti bayar dalam 24 jam',
+    });
+    expect((await status(withProof.id)).status).toBe('PENDING'); // sudah kirim bukti
+    expect((await status(cod.id)).status).toBe('PENDING'); // COD menunggu toko
+    expect((await status(fresh.id)).status).toBe('PENDING'); // belum lewat batas
+    const cancelledView = (
+      await api().get(`/api/v1/public/orders/${expired.publicToken}`).expect(200)
+    ).body;
+    expect(cancelledView).toMatchObject({ status: 'CANCELLED', payDeadline: null });
+    expect(cancelledView.reason).toMatch(/belum ada bukti bayar/);
   });
 
   it('pelanggan bisa membatalkan pesanan online yang belum dibayar', async () => {
