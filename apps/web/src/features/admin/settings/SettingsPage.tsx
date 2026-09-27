@@ -279,7 +279,7 @@ function SettingsForm({ initial }: { initial: SettingsView }) {
         />
       </Section>
 
-      <div className="pb-safe fixed inset-x-0 bottom-16 z-10 border-t border-stone-200 bg-white/95 px-4 py-3 backdrop-blur md:bottom-0 md:left-56">
+      <div className="above-nav fixed inset-x-0 z-10 border-t border-stone-200 bg-white px-4 pt-3 md:bottom-0 md:left-56 md:bg-white/95 md:pb-3 md:backdrop-blur">
         <div className="mx-auto flex max-w-2xl gap-2">
           <Button variant="outline" disabled={!dirty} onClick={() => setForm(initial)}>
             Batalkan

@@ -136,7 +136,7 @@ Ada tiga peran. **Staff** membuat order, **Admin** memegang semua keputusan uang
 
 ## 4. Struktur Menu
 
-Di HP, navigasi memakai bottom tab bar. Di tablet/desktop (mode kasir), navigasi pindah ke sidebar dan layar POS menjadi dua kolom.
+Di HP, navigasi memakai bottom tab bar berlekuk (v2.7): tab aktif ditandai bulatan merah berikon yang meluncur (animasi) ke tab yang dipilih. Di tablet/desktop (mode kasir), navigasi pindah ke sidebar dan layar POS menjadi dua kolom.
 
 **Menu Staff (4 tab)**
 
@@ -156,7 +156,7 @@ Di HP, navigasi memakai bottom tab bar. Di tablet/desktop (mode kasir), navigasi
    - Detail, ubah item, diskon, pilih metode bayar, **Approve & Print**, Reject, Approve Massal
 3. **Order**
    - Semua Transaksi (filter tanggal, status, sumber, staff, metode bayar), detail, cetak ulang, void
-   - Buat Order Langsung, Tempel Pesan, Rekap Produksi (**Diproses** menjadi tab sendiri sejak v2.3, menggantikan Antrian Dapur dan Packing & Tagihan)
+   - Pintasan **Diproses**, Buat Order Langsung, Tempel Pesan, Rekap Produksi. Diproses (sejak v2.3 menggantikan Antrian Dapur dan Packing & Tagihan) dibuka dari halaman Order, bukan tab sendiri (v2.7); saat halaman itu terbuka, tab Order yang menyala.
 4. **Stok**
    - Stok Produk, Stok Bahan Baku, Stok Masuk, Produksi, Stok Opname, Penyesuaian/Waste, Riwayat Mutasi
 5. **Lainnya**
@@ -923,3 +923,4 @@ Pengerjaan dibagi menjadi 9 sprint (sekitar 9–11 minggu bila dikerjakan sendir
 | 2.4 | 26 Sep 2026 | **Pembayaran dicek admin.** QRIS tanpa kode unik (QR bernominal pas sesuai tagihan) dan pelanggan QRIS/Transfer **wajib unggah bukti bayar**; approve order pelanggan non-tunai tanpa bukti butuh konfirmasi admin (`confirmWithoutProof`). Notifikasi DANA (MacroDroid) tidak lagi menyetujui otomatis, hanya dicatat dan tampil di dialog approve sebagai pembanding bukti bayar (satu uang masuk hanya bisa dipakai satu order). Menu **Rekening Bank** (admin): rekening tujuan Transfer tampil ke pelanggan beserta tombol salin; Transfer hanya muncul bila ada rekening aktif. **Riwayat pesanan** pelanggan (`/riwayat`, token tersimpan di HP 90 hari). **Self-order QR meja dinonaktifkan** sementara (kanal aktif: admin, POS staff, WhatsApp, online). Halaman **Diproses staff hanya memantau** order yang dia input sendiri; ubah status khusus admin. |
 | 2.5 | 27 Sep 2026 | **Cara bayar order pelanggan dikunci ke pilihan pelanggan.** Admin tidak memilih metode saat approve order self-order (link online/QR); server menolak bila dikirim metode lain. Order pelanggan tunai otomatis COD (belum dibayar). Pelanggan bisa **mengganti cara bayar** sendiri di halaman pesanan selama masih menunggu dan belum mengirim bukti bayar (`POST /public/orders/:publicToken/payment-method`, dicatat di `order_logs`). Admin tetap memilih metode untuk order staff/WhatsApp. |
 | 2.6 | 27 Sep 2026 | **Batal otomatis:** pesanan pelanggan QRIS/Transfer tanpa bukti bayar dibatalkan setelah `unpaidCancelHours` jam (default 24, 0 = tidak; dicek tiap 10 menit, COD tidak terpengaruh); pelanggan melihat batas unggah bukti. **Stok di menu pelanggan:** tiap varian bertanda tersedia / *Stok terbatas* (< 3 pack) / habis, tanpa angka persis; link online tetap bisa pre-order varian yang habis hari ini (checkout untuk hari ini ditahan). **Reset password darurat** lewat perintah server `reset-password` (selain reset oleh admin di menu Pengguna). |
+| 2.7 | 27 Sep 2026 | **Navbar bawah baru (HP, Staff & Admin):** bar berlekuk dengan bulatan merah berikon di tab aktif yang meluncur memantul saat pindah tab (menghormati *reduce motion*). Tab **Diproses** dihapus dari navbar admin (5 tab: Beranda, Approval, Order, Stok, Lainnya) karena sudah ada di halaman Order. Perbaikan: simpan Pengaturan Toko tidak lagi gagal karena `onlineOrderToken` ikut terkirim. |
