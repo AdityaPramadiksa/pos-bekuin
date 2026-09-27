@@ -43,8 +43,9 @@ export type AgentState = z.infer<typeof agentStateSchema>;
 export const runDetailResponseSchema = z.object({
   run: runSummarySchema,
   events: z.array(agentEventSchema),
-  /** Kursor untuk halaman berikutnya (?after=); null bila sudah habis. */
-  nextCursor: z.int().nullable(),
+  /** Kursor event terakhir di halaman ini; kirim sebagai ?after= untuk lanjut. */
+  nextCursor: z.int().min(0),
+  hasMore: z.boolean(),
 });
 export type RunDetailResponse = z.infer<typeof runDetailResponseSchema>;
 

@@ -21,6 +21,16 @@ export function relativePath(path: string, cwd?: string): string {
   return path.startsWith(base) ? path.slice(base.length) : path;
 }
 
+/** Ganti path absolut folder kerja di dalam teks perintah dengan path relatif. */
+function stripCwd(text: string, cwd: string): string {
+  const base = cwd.endsWith('/') ? cwd.slice(0, -1) : cwd;
+  if (!base || base === '/') return text;
+  const esc = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text
+    .replace(new RegExp(`${esc}/?(?=[\\s'"]|$)`, 'g'), '.')
+    .replace(new RegExp(`${esc}/`, 'g'), '');
+}
+
 function safeJson(v: unknown): string {
   try {
     const s = JSON.stringify(v);
@@ -46,9 +56,11 @@ export function summarizeToolInput(
   const path = str(input.file_path) ?? str(input.notebook_path) ?? str(input.path);
   let out: string | undefined;
   switch (toolName) {
-    case 'Bash':
-      out = str(input.command);
+    case 'Bash': {
+      const cmd = str(input.command);
+      out = cmd && cwd ? stripCwd(cmd, cwd) : cmd;
       break;
+    }
     case 'Read':
     case 'Write':
     case 'Edit':

@@ -201,14 +201,14 @@ export class Repository {
     runId: string,
     afterSeq: number,
     limit: number,
-  ): { events: AgentEvent[]; nextCursor: number | null } {
+  ): { events: AgentEvent[]; nextCursor: number; hasMore: boolean } {
     const rows = this.db
       .prepare('SELECT * FROM agent_events WHERE run_id = ? AND seq > ? ORDER BY seq ASC LIMIT ?')
       .all(runId, afterSeq, limit + 1) as EventRow[];
     const page = rows.slice(0, limit);
     const events = page.map(toEvent).filter((e): e is AgentEvent => e !== null);
     const last = page.at(-1);
-    return { events, nextCursor: rows.length > limit && last ? last.seq : null };
+    return { events, nextCursor: last ? last.seq : afterSeq, hasMore: rows.length > limit };
   }
 
   listAgentStates(runId: string): AgentState[] {

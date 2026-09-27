@@ -35,6 +35,12 @@ describe('summarizeToolInput', () => {
     ).toBe('npm test --watch=false');
   });
 
+  it('Bash → path folder kerja di dalam perintah dijadikan relatif', () => {
+    expect(
+      summarizeToolInput('Bash', { command: 'ls /home/u/ws/ && cat /home/u/ws/a.txt' }, cwd),
+    ).toBe('ls . && cat a.txt');
+  });
+
   it('Grep → pola + lokasi', () => {
     expect(summarizeToolInput('Grep', { pattern: 'TODO', path: '/home/u/ws/src' }, cwd)).toBe(
       'TODO di src',

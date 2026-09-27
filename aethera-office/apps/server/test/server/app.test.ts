@@ -216,7 +216,7 @@ describe('POST /events → GET /runs/:runId', () => {
     const detail = (await app.fastify.inject(`/runs/${run.runId}`)).json<RunDetailResponse>();
     expect(detail.events.map((e) => e.id)).toEqual(events.map((e) => e.id));
     expect(detail.events[2]).toEqual(events[2]);
-    expect(detail.nextCursor).toBeNull();
+    expect(detail.hasMore).toBe(false);
 
     const states = (await app.fastify.inject(`/runs/${run.runId}/agents`)).json<AgentState[]>();
     expect(states.find((s) => s.agentId === 'zaki')).toMatchObject({
@@ -252,7 +252,7 @@ describe('POST /events → GET /runs/:runId', () => {
     }
     const p1 = (await app.fastify.inject(`/runs/${run.runId}?limit=3`)).json<RunDetailResponse>();
     expect(p1.events).toHaveLength(3);
-    expect(p1.nextCursor).not.toBeNull();
+    expect(p1.hasMore).toBe(true);
     const p2 = (
       await app.fastify.inject(`/runs/${run.runId}?limit=3&after=${p1.nextCursor}`)
     ).json<RunDetailResponse>();
@@ -260,7 +260,11 @@ describe('POST /events → GET /runs/:runId', () => {
       'm3',
       'm4',
     ]);
-    expect(p2.nextCursor).toBeNull();
+    expect(p2.hasMore).toBe(false);
+    const p3 = (
+      await app.fastify.inject(`/runs/${run.runId}?after=${p2.nextCursor}`)
+    ).json<RunDetailResponse>();
+    expect(p3).toMatchObject({ events: [], nextCursor: p2.nextCursor, hasMore: false });
   });
 
   it('event invalid → 400, run/agent tak dikenal → 404', async () => {
