@@ -28,6 +28,16 @@ export function statusLabel(status: keyof typeof STATUS_LABEL): string {
   return STATUS_LABEL[status];
 }
 
+/** Buang penanda markdown umum (**tebal**, `kode`, # judul) supaya enak dibaca di label. */
+export function plainText(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/(\*\*|__|`)/g, '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** Kalimat aktivitas singkat berbahasa manusia, mis. "Mengedit src/main.ts". */
 export function describeEvent(event: AgentEvent): string {
   switch (event.type) {
@@ -42,7 +52,7 @@ export function describeEvent(event: AgentEvent): string {
         event.payload.durationMs !== null ? ` (${event.payload.durationMs} ms)` : ''
       }`;
     case 'agent.message':
-      return event.payload.text;
+      return plainText(event.payload.text);
     case 'agent.status_change':
       return `${STATUS_LABEL[event.payload.to]}${event.payload.reason ? ` — ${event.payload.reason}` : ''}`;
     case 'agent.session_end':

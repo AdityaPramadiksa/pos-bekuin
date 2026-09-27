@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { describeEvent, summarizeToolInput, summarizeToolResponse, truncate } from '../src';
+import {
+  describeEvent,
+  plainText,
+  summarizeToolInput,
+  summarizeToolResponse,
+  truncate,
+} from '../src';
 
 describe('truncate', () => {
   it('tidak mengubah teks pendek', () => expect(truncate('halo', 10)).toBe('halo'));
@@ -106,5 +112,13 @@ describe('describeEvent', () => {
         payload: { toolUseId: 't', toolName: 'Foo', inputSummary: '' },
       }),
     ).toBe('Memakai Foo');
+  });
+});
+
+describe('plainText', () => {
+  it('membuang markdown tebal, kode, judul, dan blok kode', () => {
+    expect(plainText('## Hasil\nFile **todo.js** sudah `dibuat`.\n```js\nx()\n```')).toBe(
+      'Hasil File todo.js sudah dibuat.',
+    );
   });
 });

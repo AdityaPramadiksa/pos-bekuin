@@ -1,3 +1,4 @@
+import { plainText } from '@aethera/shared';
 import { memo } from 'react';
 import { formatCompact } from '@/lib/format';
 import { STATUS_COLOR } from '@/lib/status';
@@ -16,7 +17,7 @@ export const AgentCard = memo(function AgentCard({
   const alert = agent.status === 'error' || agent.status === 'blocked';
   const color = STATUS_COLOR[agent.status];
   const activity = agent.typing
-    ? `✎ ${agent.typing}`
+    ? `✎ ${plainText(agent.typing)}`
     : agent.lastActivity || (agent.status === 'idle' ? 'Belum ada aktivitas' : '');
   const tokens = agent.usage.inputTokens + agent.usage.outputTokens;
 

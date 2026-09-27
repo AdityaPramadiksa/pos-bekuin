@@ -153,7 +153,10 @@ export function EventStream({ className = '' }: { className?: string }) {
                   >
                     {a?.def.name ?? e.agentId}
                   </span>
-                  <span className="min-w-0 leading-5 break-words text-ink/85">
+                  <span
+                    className="line-clamp-3 min-w-0 leading-5 break-words text-ink/85"
+                    title={describeEvent(e)}
+                  >
                     {describeEvent(e)}
                   </span>
                 </li>
