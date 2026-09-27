@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { QrisCode } from '@/components/QrisCode';
 import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/features/orders/order-format';
 import { assetUrl } from '@/lib/api';
 
 async function copy(text: string) {
@@ -225,6 +226,12 @@ function ProofUpload({
         <p className="rounded-xl bg-amber-50 p-3 text-left text-sm text-amber-900">
           <b>Wajib:</b> setelah bayar, unggah screenshot bukti bayar. Pesanan baru diproses setelah
           admin mengecek uangnya masuk.
+          {o.payDeadline && (
+            <span className="mt-1 block font-semibold">
+              Batas unggah: {formatDateTime(o.payDeadline)}. Lewat dari itu pesanan otomatis
+              dibatalkan.
+            </span>
+          )}
         </p>
       )}
       <Button

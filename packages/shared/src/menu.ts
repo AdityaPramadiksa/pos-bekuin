@@ -120,6 +120,8 @@ export interface SettingsView {
   openingHours: OpeningHours | null;
   qrOrderingEnabled: boolean;
   qrMaxOrderTotal: number;
+  /** Pesanan pelanggan QRIS/Transfer tanpa bukti bayar dibatalkan otomatis setelah N jam (0 = tidak). */
+  unpaidCancelHours: number;
   /** Token link order online (/pesan/<token>). */
   onlineOrderToken: string | null;
   onlineOrderingEnabled: boolean;

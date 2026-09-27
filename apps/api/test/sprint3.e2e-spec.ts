@@ -128,6 +128,7 @@ describe('Sprint 3: self-order QR & dapur (e2e)', () => {
       packSize: 6,
       price: 25000,
       available: true,
+      stockLevel: 'OK', // tingkat stok saja, bukan angka
     });
     expect(JSON.stringify(res.body)).not.toMatch(/stockPcs|availablePcs|avgCost|hpp/i);
   });

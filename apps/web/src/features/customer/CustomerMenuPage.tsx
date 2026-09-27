@@ -15,7 +15,7 @@ import { Field, Input, Textarea } from '@/components/ui/input';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { assetUrl, errorMessage, publicApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { formatDateKey } from '@/features/orders/order-format';
+import { dateKeyWita, formatDateKey } from '@/features/orders/order-format';
 import { cartTotals, getCartStore } from '@/stores/cart';
 import { loadMyOrders, saveMyOrder } from './my-orders';
 import { sortCustomerMethods } from './payment-methods';
@@ -102,9 +102,18 @@ function Menu({ channel, data }: { channel: Channel; data: PublicMenuResponse })
     online && delivery.method === 'DELIVERY' ? calcDeliveryFee(totals.total, online) : 0;
   const grandTotal = totals.total + deliveryFee;
   const phoneOk = /^[0-9+\-\s]{8,20}$/.test(meta.customerPhone.trim());
+  // Varian yang stoknya habis hari ini hanya bisa dipesan untuk tanggal lain (pre-order).
+  const variantStock = new Map(
+    data.products.flatMap((p) => p.variants.map((v) => [v.id, v.stockLevel] as const)),
+  );
+  const soldOutToday =
+    online && delivery.date === dateKeyWita()
+      ? lines.filter((l) => variantStock.get(l.variantId) === 'SOLD_OUT')
+      : [];
   const onlineInvalid =
     !!online &&
     (!phoneOk ||
+      soldOutToday.length > 0 ||
       !delivery.date ||
       (delivery.method === 'DELIVERY' && delivery.address.trim().length < 10));
   const qtyOf = (variantId: string) => lines.find((l) => l.variantId === variantId)?.qty ?? 0;
@@ -246,6 +255,18 @@ function Menu({ channel, data }: { channel: Channel; data: PublicMenuResponse })
                               <span className="text-brand-700 ml-2 font-bold">
                                 {formatRupiah(v.price)}
                               </span>
+                              {v.available && v.stockLevel === 'LIMITED' && (
+                                <span className="block text-xs font-semibold text-amber-700">
+                                  Stok terbatas
+                                </span>
+                              )}
+                              {v.available &&
+                                v.stockLevel === 'SOLD_OUT' &&
+                                online?.acceptingToday && (
+                                  <span className="block text-xs font-semibold text-stone-500">
+                                    Habis hari ini · bisa pesan untuk besok
+                                  </span>
+                                )}
                             </div>
                             {!v.available ? (
                               <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-500">
@@ -425,6 +446,13 @@ function Menu({ channel, data }: { channel: Channel; data: PublicMenuResponse })
               <span className="text-2xl font-bold">{formatRupiah(grandTotal)}</span>
             </div>
           </div>
+          {soldOutToday.length > 0 && (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+              Stok hari ini habis untuk{' '}
+              <b>{soldOutToday.map((l) => `${l.productName} isi ${l.packSize}`).join(', ')}</b>.
+              Pilih tanggal lain (pre-order) atau hapus dari keranjang.
+            </p>
+          )}
           {overLimit && (
             <p className="text-sm text-red-600">
               Total melebihi batas {formatRupiah(data.maxOrderTotal)}.{' '}

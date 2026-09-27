@@ -7,6 +7,8 @@ import type {
 } from './enums';
 import type { OpeningHours } from './menu';
 
+export type StockLevel = 'OK' | 'LIMITED' | 'SOLD_OUT';
+
 /** Metode bayar yang boleh dipilih pelanggan saat pesan (diatur di Metode Bayar). */
 export interface PublicPaymentMethod {
   id: string;
@@ -53,7 +55,10 @@ export interface PublicMenuResponse {
       categoryCode: string;
       packSize: number;
       price: number;
+      /** Bisa ditambahkan ke keranjang. */
       available: boolean;
+      /** Stok hari ini: tersedia / tinggal sedikit / habis (tanpa angka persis). */
+      stockLevel: StockLevel;
     }[];
   }[];
 }
@@ -117,6 +122,8 @@ export interface PublicOrderView {
   canCancel: boolean;
   /** QRIS/Transfer: pelanggan wajib mengunggah bukti bayar sebelum pesanan diproses. */
   canUploadProof: boolean;
+  /** Batas unggah bukti bayar (ISO); lewat dari itu pesanan dibatalkan otomatis. null = tidak ada. */
+  payDeadline: string | null;
   /** Pilihan untuk mengganti cara bayar (kosong bila tidak bisa diganti lagi). */
   paymentOptions: PublicPaymentMethod[];
 }
