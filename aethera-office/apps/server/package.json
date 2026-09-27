@@ -8,9 +8,14 @@
     "dev": "tsx watch src/main.ts",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "demo": "pnpm --filter @aethera/hook-relay build && tsx src/orchestrator/demo.ts"
   },
   "devDependencies": {
     "tsx": "^4.23.15"
+  },
+  "dependencies": {
+    "@aethera/hook-relay": "workspace:*",
+    "@aethera/shared": "workspace:*"
   }
 }

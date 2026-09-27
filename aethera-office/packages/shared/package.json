@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./summarize": {
+      "types": "./dist/summarize.d.ts",
+      "import": "./dist/summarize.js"
     }
   },
   "files": [
@@ -22,5 +26,6 @@
   },
   "dependencies": {
     "zod": "^4.6.5"
-  }
+  },
+  "sideEffects": false
 }

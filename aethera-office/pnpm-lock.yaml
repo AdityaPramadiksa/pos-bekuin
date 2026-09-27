@@ -40,6 +40,13 @@ importers:
         version: 3.2.7(@types/node@22.20.4)(tsx@4.23.15)
 
   apps/server:
+    dependencies:
+      '@aethera/hook-relay':
+        specifier: workspace:*
+        version: link:../../packages/hook-relay
+      '@aethera/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       tsx:
         specifier: ^4.23.15
@@ -67,7 +74,11 @@ importers:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@22.20.4)(tsx@4.23.15)
 
-  packages/hook-relay: {}
+  packages/hook-relay:
+    devDependencies:
+      '@aethera/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/shared:
     dependencies:

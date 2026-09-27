@@ -7,6 +7,17 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
-  }
+    "test": "tsup --silent && vitest run"
+  },
+  "devDependencies": {
+    "@aethera/shared": "workspace:*"
+  },
+  "exports": {
+    ".": {
+      "default": "./dist/relay.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
 }
