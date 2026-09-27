@@ -6,7 +6,7 @@ Ada dua pilihan:
 
 | | A. Satu VPS (disarankan) | B. Layanan terkelola |
 | --- | --- | --- |
-| Komponen | VPS 1–2 GB RAM + Docker | Railway (API) + Neon (DB) + Vercel (web) |
+| Komponen | VPS 2 GB RAM + Docker | Railway (API) + Neon (DB) + Vercel (web) |
 | Biaya kira-kira | Rp60–120 rb/bulan + domain | Gratis/tier awal, naik sesuai pemakaian |
 | HTTPS | Otomatis (Caddy + Let's Encrypt) | Otomatis |
 | Backup | Harian otomatis ke folder `backups/` | Fitur backup Neon + unduh manual |
@@ -20,13 +20,18 @@ Semua jalan di satu server: PostgreSQL, API, web (Caddy), dan backup harian. Web
 
 ### 1. Siapkan server & domain
 
-1. Sewa VPS Ubuntu 22.04/24.04 (minimal 1 vCPU, 1 GB RAM; 2 GB lebih lega). Lokasi Singapura/Jakarta.
+1. Sewa VPS Ubuntu 22.04/24.04, **minimal 2 GB RAM** (1 vCPU cukup), disk ≥ 20 GB. Lokasi Jakarta/Singapura.
 2. Beli domain (misal `bekuin.id`) lalu buat **A record** `pos.bekuin.id` → IP VPS. Tunggu sampai `ping pos.bekuin.id` menunjuk ke IP itu.
 3. Masuk ke VPS (`ssh root@IP`) dan pasang Docker:
    ```bash
    curl -fsSL https://get.docker.com | sh
    ```
-4. Buka port 80 dan 443 di firewall (bila memakai `ufw`: `ufw allow 80,443/tcp && ufw allow 443/udp`).
+4. Buka port 80 dan 443 di firewall (bila memakai `ufw`: `ufw allow OpenSSH && ufw allow 80,443/tcp && ufw allow 443/udp && ufw enable`).
+5. Tambah **swap 2 GB** supaya proses build tidak kehabisan RAM (wajib bila RAM VPS 1–2 GB):
+   ```bash
+   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+   echo '/swapfile none swap sw 0 0' >> /etc/fstab
+   ```
 
 ### 2. Ambil kode & isi konfigurasi
 
@@ -67,13 +72,14 @@ curl https://pos.bekuin.id/api/v1/health      # {"status":"ok","database":"up",.
 docker compose -f docker-compose.prod.yml --env-file deploy/.env exec api node dist-seed/seed.js
 ```
 
-Seeder membuat akun `admin` & `staff`, kategori, menu, bahan, resep, metode bayar, 6 meja + 1 QR kasir. Seeder aman diulang: data yang sudah ada tidak ditimpa, dan di produksi tidak dibuat stok demo.
+Seeder membuat akun `admin` & `staff`, kategori, menu, bahan, resep, metode bayar, dan meja (QR meja nonaktif). Semua **stok mulai dari 0** (di produksi tidak dibuat stok demo) dan belum ada order. Seeder aman diulang: data yang sudah ada tidak ditimpa.
 
-Lalu buka `https://pos.bekuin.id`, login `admin`, ganti password, dan lengkapi **Lainnya → Pengaturan** (nama toko, gambar QRIS, jam buka).
+Lalu buka `https://pos.bekuin.id`, login `admin`, ganti password, dan lengkapi **Lainnya → Pengaturan Toko** (nama toko, gambar QRIS, jam buka, batas batal otomatis).
 
 ### 5. Setelah online
 
-- **QR meja:** Lainnya → Meja & QR → Cetak semua. Isi QR otomatis memakai domain Anda.
+- **Stok awal:** catat stok nyata lewat **Stok → Stok masuk / Produksi / Opname** (semua mulai dari 0).
+- **Rekening & link online:** isi **Lainnya → Rekening Bank**, lalu bagikan link dari **Lainnya → Link Order Online**.
 - **HP kasir:** buka web di Chrome Android → menu ⋮ → *Tambahkan ke layar utama*. Sambungkan printer di Lainnya → Printer.
 - **Notifikasi:** di tiap HP admin/staff buka Akun → aktifkan *Notifikasi di perangkat ini*.
 - **Shift kasir:** buka shift di Lainnya → Keuangan setiap hari sebelum menerima cash.
@@ -116,6 +122,33 @@ sh scripts/restore-db.sh backups/db/bekuin-20260925-0200.dump \
 **Uji restore** sebulan sekali di server/laptop cadangan. Backup yang belum pernah diuji belum bisa dipastikan bisa dipakai.
 
 ---
+
+### Mulai dari nol (hapus semua data uji)
+
+Database di VPS baru selalu kosong, jadi deploy pertama otomatis bersih. Bila sudah sempat mencoba-coba di VPS dan ingin mengulang dari nol sebelum mulai jualan (**semua order, stok, pelanggan, dan foto terhapus permanen**):
+
+```bash
+cd pos-bekuin
+sh scripts/backup-now.sh          # jaga-jaga, simpan dulu
+docker compose -f docker-compose.prod.yml --env-file deploy/.env stop api backup db
+docker compose -f docker-compose.prod.yml --env-file deploy/.env rm -f api backup db
+docker volume rm bekuin_db-data bekuin_uploads
+docker compose -f docker-compose.prod.yml --env-file deploy/.env up -d
+docker compose -f docker-compose.prod.yml --env-file deploy/.env exec api node dist-seed/seed.js
+```
+
+Volume sertifikat HTTPS (`caddy-data`) sengaja tidak dihapus.
+
+Di laptop (pengembangan), database lokal direset lewat Prisma: semua tabel dikosongkan, migrasi diulang, lalu seeder dijalankan. Tambahkan `SEED_DEMO_STOCK=false` supaya stok mulai dari 0:
+
+```bash
+# macOS / Linux / Git Bash
+SEED_DEMO_STOCK=false pnpm db:reset
+# Windows PowerShell
+$env:SEED_DEMO_STOCK="false"; pnpm db:reset; Remove-Item Env:SEED_DEMO_STOCK
+```
+
+Foto lama di `apps/api/uploads/` tidak ikut terhapus; hapus foldernya bila perlu.
 
 ### Lupa password
 
