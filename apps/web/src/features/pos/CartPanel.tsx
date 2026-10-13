@@ -1,9 +1,11 @@
 import { formatRupiah } from '@bekuin/shared';
 import { Minus, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Field, Input, Textarea } from '@/components/ui/input';
+import { Field, Input, MoneyInput, Textarea } from '@/components/ui/input';
+import { QtyInput } from '@/components/ui/qty-input';
 import { cn } from '@/lib/utils';
-import { cartTotals, getCartStore } from '@/stores/cart';
+import { cartTotals, getCartStore, MAX_QTY_PER_ITEM } from '@/stores/cart';
 import { dateKeyWita, formatDateKey } from '@/features/orders/order-format';
 import { useCustomerSuggest } from '@/lib/queries';
 import { TablePicker } from './TablePicker';
@@ -14,15 +16,19 @@ export function CartPanel({
   submitting,
   onSubmit,
   extraFields,
+  allowDeliveryFee = false,
 }: {
   cartKey: string;
   submitLabel: string;
   submitting: boolean;
   onSubmit: () => void;
   extraFields?: React.ReactNode;
+  /** Admin boleh menambah ongkir; ikut ke total order & nota. */
+  allowDeliveryFee?: boolean;
 }) {
   const { lines, meta, setQty, setMeta, clear } = getCartStore(cartKey)();
   const totals = cartTotals(lines);
+  const deliveryFee = allowDeliveryFee ? (meta.deliveryFee ?? 0) : 0;
   const suggestions = useCustomerSuggest(meta.customerName);
   const today = dateKeyWita(0);
   const tomorrow = dateKeyWita(1);
@@ -77,9 +83,13 @@ export function CartPanel({
                     >
                       <Minus className="size-4" />
                     </button>
-                    <span className="w-5 text-center text-sm font-semibold tabular-nums">
-                      {l.qty}
-                    </span>
+                    <QtyInput
+                      value={l.qty}
+                      max={MAX_QTY_PER_ITEM}
+                      label={`${l.productName} ${l.packSize} pcs`}
+                      onChange={(n) => setQty(l.variantId, n)}
+                      onClamp={(max) => toast.warning(`Maksimal ${max} pack per item`)}
+                    />
                     <button
                       aria-label="Tambah"
                       onClick={() => setQty(l.variantId, l.qty + 1)}
@@ -167,6 +177,18 @@ export function CartPanel({
               )}
             </div>
             {extraFields}
+            {allowDeliveryFee && (
+              <Field
+                label="Ongkir (opsional)"
+                hint="Ditambahkan ke total dan tampil di nota pelanggan"
+              >
+                <MoneyInput
+                  value={meta.deliveryFee || ''}
+                  placeholder="0"
+                  onChange={(v) => setMeta({ deliveryFee: v === '' ? 0 : Math.min(v, 1_000_000) })}
+                />
+              </Field>
+            )}
             <Field label="Catatan (opsional)">
               <Textarea
                 className="min-h-14"
@@ -180,9 +202,16 @@ export function CartPanel({
       </div>
 
       <div className="pb-safe border-t border-stone-200 px-4 py-3">
+        {deliveryFee > 0 && (
+          <div className="mb-1 flex justify-between text-sm text-stone-600">
+            <span>
+              Subtotal {formatRupiah(totals.total)} + ongkir {formatRupiah(deliveryFee)}
+            </span>
+          </div>
+        )}
         <div className="mb-2 flex items-baseline justify-between">
           <span className="text-sm text-stone-600">{totals.packs} pack</span>
-          <span className="text-xl font-bold">{formatRupiah(totals.total)}</span>
+          <span className="text-xl font-bold">{formatRupiah(totals.total + deliveryFee)}</span>
         </div>
         <Button
           className="w-full"

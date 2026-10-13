@@ -56,6 +56,8 @@ export interface CreateOrderInput {
   customerFacing?: boolean;
   /** Lewati cek stok (dipakai import pre-order; approve tetap cek). */
   skipStockCheck?: boolean;
+  /** Ongkir (rupiah) yang ditambahkan admin saat membuat order; ikut ke total & nota. */
+  deliveryFee?: number;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -145,6 +147,9 @@ export class OrdersService {
   // ───────────────────────────── Buat & ubah ─────────────────────────────
 
   async createFromStaff(dto: CreateOrderDto, user: JwtPayload): Promise<OrderView> {
+    if (dto.deliveryFee && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Hanya admin yang bisa menambahkan ongkir');
+    }
     const id = await this.prisma.$transaction((tx) =>
       this.createInTx(tx, {
         ...dto,
@@ -187,7 +192,8 @@ export class OrdersService {
         deliveryDate: dateOnly(deliveryKey),
         batchId: input.batchId,
         subtotal,
-        total: subtotal,
+        deliveryFee: input.deliveryFee ?? 0,
+        total: subtotal + (input.deliveryFee ?? 0),
         createdById: input.createdById,
         items: { create: items.map(toItemCreate) },
         logs: { create: { action: 'CREATED', toStatus: 'PENDING', userId: input.createdById } },

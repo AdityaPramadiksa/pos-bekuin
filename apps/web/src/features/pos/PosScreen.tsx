@@ -5,12 +5,13 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { QtyInput } from '@/components/ui/qty-input';
 import { EmptyState, ErrorState, LoadingState } from '@/components/ui/states';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { queryKeys, useCatalog } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
-import { cartPcsByProduct, cartTotals, getCartStore } from '@/stores/cart';
+import { cartPcsByProduct, cartTotals, getCartStore, MAX_QTY_PER_ITEM } from '@/stores/cart';
 import { CartPanel } from './CartPanel';
 
 export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => void }) {
@@ -28,6 +29,8 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
   const activeCategory = categories.find((c) => c.id === categoryId) ?? categories[0];
   const cartPcs = cartPcsByProduct(lines);
   const totals = cartTotals(lines);
+  const isAdmin = role === 'ADMIN';
+  const deliveryFee = isAdmin ? (meta.deliveryFee ?? 0) : 0;
 
   const packsByCategory = new Map<string, number>();
   for (const l of lines) {
@@ -52,6 +55,7 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
           type: meta.type,
           tableId: meta.type === 'DINE_IN' && meta.tableId ? meta.tableId : null,
           deliveryDate: meta.deliveryDate || undefined,
+          ...(isAdmin && meta.deliveryFee ? { deliveryFee: meta.deliveryFee } : {}),
         })
       ).data,
     onSuccess: (order) => {
@@ -70,7 +74,8 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
   const cartPanel = (
     <CartPanel
       cartKey={`pos-${userId}`}
-      submitLabel={role === 'ADMIN' ? 'Lanjut ke Pembayaran' : 'Kirim ke Admin'}
+      submitLabel={isAdmin ? 'Lanjut ke Pembayaran' : 'Kirim ke Admin'}
+      allowDeliveryFee={isAdmin}
       submitting={submit.isPending}
       onSubmit={() => submit.mutate()}
     />
@@ -144,17 +149,20 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
                     categoryId={activeCategory!.id}
                     remainingPcs={p.availablePcs - (cartPcs.get(p.id) ?? 0)}
                     qtyOf={(variantId) => lines.find((l) => l.variantId === variantId)?.qty ?? 0}
-                    onAdd={(variant) =>
-                      add({
-                        variantId: variant.id,
-                        productId: p.id,
-                        productName: p.name,
-                        categoryId: variant.categoryId,
-                        categoryCode: variant.categoryCode,
-                        categoryName: activeCategory!.name,
-                        packSize: variant.packSize,
-                        price: variant.price,
-                      })
+                    onAdd={(variant, qty) =>
+                      add(
+                        {
+                          variantId: variant.id,
+                          productId: p.id,
+                          productName: p.name,
+                          categoryId: variant.categoryId,
+                          categoryCode: variant.categoryCode,
+                          categoryName: activeCategory!.name,
+                          packSize: variant.packSize,
+                          price: variant.price,
+                        },
+                        qty,
+                      )
                     }
                     onSetQty={setQty}
                   />
@@ -179,7 +187,7 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
         >
           <ShoppingBasket className="size-5" />
           <span className="text-sm font-medium">{totals.packs} pack</span>
-          <span className="ml-auto font-bold">{formatRupiah(totals.total)}</span>
+          <span className="ml-auto font-bold">{formatRupiah(totals.total + deliveryFee)}</span>
           <span className="rounded-lg bg-white/20 px-2 py-1 text-xs font-semibold">
             Lihat Keranjang
           </span>
@@ -204,7 +212,7 @@ function ProductTile({
   categoryId: string;
   remainingPcs: number;
   qtyOf: (variantId: string) => number;
-  onAdd: (variant: CatalogProduct['variants'][number]) => void;
+  onAdd: (variant: CatalogProduct['variants'][number], qty?: number) => void;
   onSetQty: (variantId: string, qty: number) => void;
 }) {
   const soldOut = !product.isAvailable;
@@ -259,7 +267,22 @@ function ProductTile({
                   >
                     <Minus className="size-4" />
                   </button>
-                  <span className="w-6 text-center text-sm font-semibold tabular-nums">{qty}</span>
+                  <QtyInput
+                    value={qty}
+                    max={Math.min(
+                      MAX_QTY_PER_ITEM,
+                      qty + (soldOut ? 0 : Math.floor(Math.max(0, remainingPcs) / v.packSize)),
+                    )}
+                    label={`${product.name} ${v.packSize} pcs`}
+                    onChange={(n) => (qty === 0 ? onAdd(v, n) : onSetQty(v.id, n))}
+                    onClamp={(max) =>
+                      toast.warning(
+                        max === MAX_QTY_PER_ITEM
+                          ? `Maksimal ${MAX_QTY_PER_ITEM} pack per item`
+                          : `Stok ${product.name} hanya cukup untuk ${max} pack isi ${v.packSize}`,
+                      )
+                    }
+                  />
                   <button
                     aria-label={`Tambah ${product.name} ${v.packSize} pcs`}
                     disabled={!canAdd}

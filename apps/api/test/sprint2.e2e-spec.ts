@@ -269,4 +269,34 @@ describe('Sprint 2: POS & approval (e2e)', () => {
     expect(summary.body.paid.count).toBeGreaterThanOrEqual(3);
     await staff.as(api().get('/api/v1/reports/today')).expect(403);
   });
+
+  it('admin menambah ongkir saat membuat order: masuk total & tetap saat approve; staff ditolak', async () => {
+    await adjust('PRODUCT', productId, 'SET', 60).expect(201);
+    await createOrder(staff, [{ variantId: f6, qty: 1 }], { deliveryFee: 15000 }).then((r) =>
+      expect(r.status).toBe(403),
+    );
+    await createOrder(admin, [{ variantId: f6, qty: 1 }], { deliveryFee: -1 }).then((r) =>
+      expect(r.status).toBe(400),
+    );
+    const created = await createOrder(admin, [{ variantId: f6, qty: 2 }], {
+      customerName: 'e2e Ongkir',
+      deliveryFee: 15000,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ subtotal: 40000, deliveryFee: 15000, total: 55000 });
+
+    // koreksi qty saat approve: total dihitung ulang dengan ongkir tetap ikut
+    const itemId = created.body.items[0].id;
+    const approved = await admin
+      .as(api().post(`/api/v1/orders/${created.body.id}/approve`))
+      .send({ paymentMethodId: qrisId, items: [{ id: itemId, qty: 1 }] })
+      .expect(200);
+    expect(approved.body).toMatchObject({
+      status: 'PAID',
+      subtotal: 20000,
+      deliveryFee: 15000,
+      total: 35000,
+      paidAmount: 35000,
+    });
+  });
 });

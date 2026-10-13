@@ -20,6 +20,9 @@ import { ErrorState, LoadingState } from '@/components/ui/states';
 import { DeliveryInfo } from '@/features/orders/DeliveryInfo';
 import { SourceBadge } from '@/features/orders/order-ui';
 import { categoryLabel, formatDateTime } from '@/features/orders/order-format';
+import { QtyInput } from '@/components/ui/qty-input';
+import { InvoiceShare } from '@/features/orders/InvoiceShare';
+import { MAX_QTY_PER_ITEM } from '@/stores/cart';
 import { isPrinterConnected, printReceipt } from '@/features/printer/receipt';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useCurrentShift, useOrder, usePaymentMethods, useSettings } from '@/lib/queries';
@@ -228,6 +231,11 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
             <p className="text-3xl font-bold text-green-800">{formatRupiah(done.changeAmount)}</p>
           </div>
         )}
+        {settings.data && (
+          <div className="text-left">
+            <InvoiceShare order={done} store={settings.data} />
+          </div>
+        )}
         <div className="flex gap-2">
           <Button
             variant="outline"
@@ -332,10 +340,16 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
                   >
                     <Minus className="size-4" />
                   </button>
-                  <span className="w-6 text-center text-sm font-semibold">{q}</span>
+                  <QtyInput
+                    value={q}
+                    max={MAX_QTY_PER_ITEM}
+                    label={`${i.productName} ${i.packSize} pcs`}
+                    onChange={(n) => setQty({ ...qty, [i.id]: n })}
+                    onClamp={(max) => toast.warning(`Maksimal ${max} pack per item`)}
+                  />
                   <button
                     aria-label="Tambah"
-                    onClick={() => setQty({ ...qty, [i.id]: q + 1 })}
+                    onClick={() => setQty({ ...qty, [i.id]: Math.min(MAX_QTY_PER_ITEM, q + 1) })}
                     className="flex size-8 items-center justify-center rounded-lg border border-stone-300"
                   >
                     <Plus className="size-4" />

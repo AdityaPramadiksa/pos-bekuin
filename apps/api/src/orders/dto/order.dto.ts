@@ -62,6 +62,13 @@ export class CreateOrderDto {
   @IsOptional()
   @Matches(DATE_KEY, { message: 'Tanggal kirim harus YYYY-MM-DD' })
   deliveryDate?: string;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Ongkir (rupiah), khusus admin' })
+  @IsOptional()
+  @IsInt({ message: 'Ongkir harus angka rupiah' })
+  @Min(0)
+  @Max(1_000_000, { message: 'Ongkir maksimal Rp1.000.000' })
+  deliveryFee?: number;
 }
 
 export class UpdateOrderDto {

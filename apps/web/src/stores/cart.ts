@@ -1,6 +1,11 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+/** Jumlah pack maksimal per item, sama dengan batas server (order-pricing.ts). */
+export const MAX_QTY_PER_ITEM = 200;
+/** Batas untuk pesanan pelanggan (link online / QR), sama dengan DTO publik. */
+export const CUSTOMER_MAX_QTY_PER_ITEM = 50;
+
 export interface CartLine {
   variantId: string;
   productId: string;
@@ -20,6 +25,8 @@ export interface CartMeta {
   type: 'TAKEAWAY' | 'DINE_IN';
   tableId: string;
   deliveryDate: string; // '' = hari ini
+  /** Ongkir tambahan (rupiah), hanya diisi admin. Keranjang lama bisa belum punya kolom ini. */
+  deliveryFee?: number;
 }
 
 interface CartState {
@@ -38,6 +45,7 @@ const EMPTY_META: CartMeta = {
   type: 'TAKEAWAY',
   tableId: '',
   deliveryDate: '',
+  deliveryFee: 0,
 };
 
 const stores = new Map<string, UseBoundStore<StoreApi<CartState>>>();
