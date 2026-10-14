@@ -50,3 +50,14 @@ export function quickCashAmounts(total: number): number[] {
     .sort((a, b) => a - b)
     .slice(0, 4);
 }
+
+/** Nomor WA Indonesia → format wa.me (62…): "0812-3456-789" → "628123456789". Null bila tidak valid. */
+export function whatsappNumber(phone: string | null | undefined): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  const intl = digits.startsWith('0')
+    ? `62${digits.slice(1)}`
+    : digits.startsWith('8')
+      ? `62${digits}`
+      : digits;
+  return intl.length >= 10 && intl.length <= 15 ? intl : null;
+}

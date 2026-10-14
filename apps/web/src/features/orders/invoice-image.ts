@@ -1,4 +1,10 @@
-import { formatRupiah, isUnpaid, type OrderView, type SettingsView } from '@bekuin/shared';
+import {
+  formatRupiah,
+  isUnpaid,
+  whatsappNumber,
+  type OrderView,
+  type SettingsView,
+} from '@bekuin/shared';
 import { categoryLabel, formatDateKey } from './order-format';
 
 /**
@@ -307,19 +313,29 @@ export function invoiceCaption(order: OrderView, store: SettingsView) {
     : `${who}berikut tagihan pesanan ${order.orderNo} dari ${store.storeName}. Total ${formatRupiah(order.total)}.`;
 }
 
+/** Link chat WhatsApp: langsung ke nomor pelanggan bila ada, selain itu pilih kontak di WA. */
+export function waChatUrl(phone: string | null | undefined, text: string) {
+  const number = whatsappNumber(phone);
+  return `https://wa.me/${number ?? ''}?text=${encodeURIComponent(text)}`;
+}
+
 /**
- * Bagikan nota lewat menu Bagikan HP (pilih WhatsApp). Bila browser tidak mendukung berbagi file
- * (mis. laptop), gambar diunduh. Balikan 'shared' | 'downloaded' | 'cancelled'.
+ * Kirim nota ke WhatsApp.
+ * - HTTPS (server toko): menu Bagikan HP terbuka dengan gambar nota terlampir → pilih WhatsApp.
+ * - Tanpa dukungan berbagi file (mis. dibuka lewat http://IP-laptop saat uji, atau laptop):
+ *   gambar diunduh lalu chat WhatsApp pelanggan dibuka dengan teks nota; admin tinggal
+ *   melampirkan foto nota dari galeri.
  */
 export async function shareInvoice(
   order: OrderView,
   store: SettingsView,
-): Promise<'shared' | 'downloaded' | 'cancelled'> {
+): Promise<'shared' | 'whatsapp' | 'cancelled'> {
   const blob = await renderInvoicePng(order, store);
   const file = new File([blob], invoiceFileName(order), { type: 'image/png' });
+  const caption = invoiceCaption(order, store);
   if (navigator.canShare?.({ files: [file] })) {
     try {
-      await navigator.share({ files: [file], text: invoiceCaption(order, store) });
+      await navigator.share({ files: [file], text: caption });
       return 'shared';
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return 'cancelled';
@@ -327,5 +343,8 @@ export async function shareInvoice(
     }
   }
   downloadBlob(blob, file.name);
-  return 'downloaded';
+  const url = waChatUrl(order.customerPhone, caption);
+  // Masih dalam jendela klik pengguna, jadi tidak diblokir; bila diblokir, buka di tab ini.
+  if (!window.open(url, '_blank')) window.location.href = url;
+  return 'whatsapp';
 }

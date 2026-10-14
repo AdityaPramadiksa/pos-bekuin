@@ -5,10 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Field, Input, MoneyInput, Textarea } from '@/components/ui/input';
 import { QtyInput } from '@/components/ui/qty-input';
 import { cn } from '@/lib/utils';
-import { cartTotals, getCartStore, MAX_QTY_PER_ITEM } from '@/stores/cart';
+import { cartDeliveryFee, cartTotals, getCartStore, MAX_QTY_PER_ITEM } from '@/stores/cart';
 import { dateKeyWita, formatDateKey } from '@/features/orders/order-format';
 import { useCustomerSuggest } from '@/lib/queries';
-import { TablePicker } from './TablePicker';
 
 export function CartPanel({
   cartKey,
@@ -28,7 +27,8 @@ export function CartPanel({
 }) {
   const { lines, meta, setQty, setMeta, clear } = getCartStore(cartKey)();
   const totals = cartTotals(lines);
-  const deliveryFee = allowDeliveryFee ? (meta.deliveryFee ?? 0) : 0;
+  const deliveryFee = cartDeliveryFee(meta, allowDeliveryFee);
+  const receive = meta.deliveryMethod ?? 'PICKUP';
   const suggestions = useCustomerSuggest(meta.customerName);
   const today = dateKeyWita(0);
   const tomorrow = dateKeyWita(1);
@@ -107,22 +107,24 @@ export function CartPanel({
         {lines.length > 0 && (
           <div className="space-y-3 border-t border-stone-100 pt-3">
             <div className="flex gap-1 rounded-xl bg-stone-100 p-1">
-              {(['TAKEAWAY', 'DINE_IN'] as const).map((t) => (
+              {(
+                [
+                  { value: 'PICKUP', label: 'Ambil sendiri' },
+                  { value: 'DELIVERY', label: 'Diantar' },
+                ] as const
+              ).map((o) => (
                 <button
-                  key={t}
-                  onClick={() => setMeta({ type: t })}
+                  key={o.value}
+                  onClick={() => setMeta({ deliveryMethod: o.value })}
                   className={cn(
                     'flex-1 rounded-lg py-1.5 text-sm font-medium',
-                    meta.type === t ? 'bg-white shadow-sm' : 'text-stone-500',
+                    receive === o.value ? 'bg-white shadow-sm' : 'text-stone-500',
                   )}
                 >
-                  {t === 'TAKEAWAY' ? 'Bawa pulang' : 'Makan di sini'}
+                  {o.label}
                 </button>
               ))}
             </div>
-            {meta.type === 'DINE_IN' && (
-              <TablePicker value={meta.tableId} onChange={(tableId) => setMeta({ tableId })} />
-            )}
             <Field label="Nama pelanggan (opsional)">
               <Input
                 value={meta.customerName}
@@ -139,8 +141,31 @@ export function CartPanel({
                 ))}
               </datalist>
             </Field>
+            <Field label="No. WA pelanggan (opsional)" hint="Untuk kirim nota lewat WhatsApp">
+              <Input
+                type="tel"
+                inputMode="tel"
+                value={meta.customerPhone}
+                maxLength={20}
+                placeholder="08xxxxxxxxxx"
+                onChange={(e) => setMeta({ customerPhone: e.target.value })}
+              />
+            </Field>
+            {receive === 'DELIVERY' && (
+              <Field label="Alamat antar (opsional)">
+                <Textarea
+                  className="min-h-14"
+                  value={meta.deliveryAddress ?? ''}
+                  maxLength={200}
+                  placeholder="Jalan, nomor rumah, patokan"
+                  onChange={(e) => setMeta({ deliveryAddress: e.target.value })}
+                />
+              </Field>
+            )}
             <div>
-              <p className="mb-1 text-sm font-medium">Tanggal kirim</p>
+              <p className="mb-1 text-sm font-medium">
+                {receive === 'DELIVERY' ? 'Tanggal antar' : 'Tanggal ambil'}
+              </p>
               <div className="flex flex-wrap items-center gap-2">
                 {[
                   { key: today, label: 'Hari ini' },
@@ -177,7 +202,7 @@ export function CartPanel({
               )}
             </div>
             {extraFields}
-            {allowDeliveryFee && (
+            {allowDeliveryFee && receive === 'DELIVERY' && (
               <Field
                 label="Ongkir (opsional)"
                 hint="Ditambahkan ke total dan tampil di nota pelanggan"

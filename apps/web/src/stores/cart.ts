@@ -27,6 +27,9 @@ export interface CartMeta {
   deliveryDate: string; // '' = hari ini
   /** Ongkir tambahan (rupiah), hanya diisi admin. Keranjang lama bisa belum punya kolom ini. */
   deliveryFee?: number;
+  /** Ambil sendiri ke lokasi / diantar. Keranjang lama belum punya → dianggap ambil sendiri. */
+  deliveryMethod?: 'PICKUP' | 'DELIVERY';
+  deliveryAddress?: string;
 }
 
 interface CartState {
@@ -46,6 +49,8 @@ const EMPTY_META: CartMeta = {
   tableId: '',
   deliveryDate: '',
   deliveryFee: 0,
+  deliveryMethod: 'PICKUP',
+  deliveryAddress: '',
 };
 
 const stores = new Map<string, UseBoundStore<StoreApi<CartState>>>();
@@ -99,3 +104,7 @@ export const cartPcsByProduct = (lines: CartLine[]) => {
   for (const l of lines) map.set(l.productId, (map.get(l.productId) ?? 0) + l.qty * l.packSize);
   return map;
 };
+
+/** Ongkir yang ikut ditagih: hanya admin dan hanya untuk pesanan diantar. */
+export const cartDeliveryFee = (meta: CartMeta, isAdmin: boolean) =>
+  isAdmin && meta.deliveryMethod === 'DELIVERY' ? (meta.deliveryFee ?? 0) : 0;

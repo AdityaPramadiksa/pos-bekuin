@@ -11,7 +11,13 @@ import { api, assetUrl, errorMessage } from '@/lib/api';
 import { queryKeys, useCatalog } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth';
-import { cartPcsByProduct, cartTotals, getCartStore, MAX_QTY_PER_ITEM } from '@/stores/cart';
+import {
+  cartDeliveryFee,
+  cartPcsByProduct,
+  cartTotals,
+  getCartStore,
+  MAX_QTY_PER_ITEM,
+} from '@/stores/cart';
 import { CartPanel } from './CartPanel';
 
 export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => void }) {
@@ -30,7 +36,7 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
   const cartPcs = cartPcsByProduct(lines);
   const totals = cartTotals(lines);
   const isAdmin = role === 'ADMIN';
-  const deliveryFee = isAdmin ? (meta.deliveryFee ?? 0) : 0;
+  const deliveryFee = cartDeliveryFee(meta, isAdmin);
 
   const packsByCategory = new Map<string, number>();
   for (const l of lines) {
@@ -52,10 +58,12 @@ export function PosScreen({ onSubmitted }: { onSubmitted: (order: OrderView) => 
           customerName: meta.customerName.trim() || null,
           customerPhone: meta.customerPhone.trim() || null,
           note: meta.note.trim() || null,
-          type: meta.type,
-          tableId: meta.type === 'DINE_IN' && meta.tableId ? meta.tableId : null,
+          type: 'TAKEAWAY',
+          deliveryMethod: meta.deliveryMethod ?? 'PICKUP',
+          deliveryAddress:
+            meta.deliveryMethod === 'DELIVERY' ? meta.deliveryAddress?.trim() || null : null,
           deliveryDate: meta.deliveryDate || undefined,
-          ...(isAdmin && meta.deliveryFee ? { deliveryFee: meta.deliveryFee } : {}),
+          ...(deliveryFee ? { deliveryFee } : {}),
         })
       ).data,
     onSuccess: (order) => {

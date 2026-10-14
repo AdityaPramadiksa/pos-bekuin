@@ -38,8 +38,11 @@ export function InvoiceShare({ order, store }: { order: OrderView; store: Settin
   const share = useMutation({
     mutationFn: () => shareInvoice(order, store),
     onSuccess: (result) => {
-      if (result === 'downloaded')
-        toast.success(`Gambar ${label} diunduh. Kirim lewat WhatsApp sebagai foto.`);
+      if (result === 'whatsapp')
+        toast.success(
+          `Gambar ${label} sudah diunduh. Di WhatsApp, tekan 📎 lalu pilih foto ${label} dari galeri.`,
+          { duration: 8000 },
+        );
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : `Gagal membuat ${label}`),
   });

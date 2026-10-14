@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrderType } from '@prisma/client';
+import { DeliveryMethod, OrderType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -62,6 +62,18 @@ export class CreateOrderDto {
   @IsOptional()
   @Matches(DATE_KEY, { message: 'Tanggal kirim harus YYYY-MM-DD' })
   deliveryDate?: string;
+
+  @ApiPropertyOptional({ enum: DeliveryMethod, description: 'Ambil sendiri / diantar' })
+  @IsOptional()
+  @IsEnum(DeliveryMethod, { message: 'Pilih ambil sendiri atau diantar' })
+  deliveryMethod?: DeliveryMethod;
+
+  @ApiPropertyOptional({ description: 'Alamat antar (hanya untuk diantar)' })
+  @IsOptional()
+  @Transform(trimOrNull)
+  @IsString()
+  @MaxLength(200)
+  deliveryAddress?: string | null;
 
   @ApiPropertyOptional({ example: 10000, description: 'Ongkir (rupiah), khusus admin' })
   @IsOptional()
