@@ -269,4 +269,70 @@ describe('Sprint 2: POS & approval (e2e)', () => {
     expect(summary.body.paid.count).toBeGreaterThanOrEqual(3);
     await staff.as(api().get('/api/v1/reports/today')).expect(403);
   });
+
+  it('admin menambah ongkir saat membuat order: masuk total & tetap saat approve; staff ditolak', async () => {
+    await adjust('PRODUCT', productId, 'SET', 60).expect(201);
+    await createOrder(staff, [{ variantId: f6, qty: 1 }], { deliveryFee: 15000 }).then((r) =>
+      expect(r.status).toBe(403),
+    );
+    await createOrder(admin, [{ variantId: f6, qty: 1 }], { deliveryFee: -1 }).then((r) =>
+      expect(r.status).toBe(400),
+    );
+    const created = await createOrder(admin, [{ variantId: f6, qty: 2 }], {
+      customerName: 'e2e Ongkir',
+      deliveryFee: 15000,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({ subtotal: 40000, deliveryFee: 15000, total: 55000 });
+
+    // koreksi qty saat approve: total dihitung ulang dengan ongkir tetap ikut
+    const itemId = created.body.items[0].id;
+    const approved = await admin
+      .as(api().post(`/api/v1/orders/${created.body.id}/approve`))
+      .send({ paymentMethodId: qrisId, items: [{ id: itemId, qty: 1 }] })
+      .expect(200);
+    expect(approved.body).toMatchObject({
+      status: 'PAID',
+      subtotal: 20000,
+      deliveryFee: 15000,
+      total: 35000,
+      paidAmount: 35000,
+    });
+  });
+
+  it('order diantar + bayar nanti tanpa metode; metode dipilih saat dilunasi', async () => {
+    await adjust('PRODUCT', productId, 'SET', 60).expect(201);
+    const created = await createOrder(staff, [{ variantId: f6, qty: 1 }], {
+      customerName: 'e2e Antar',
+      deliveryMethod: 'DELIVERY',
+      deliveryAddress: 'Jl. Uji No. 1',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body).toMatchObject({
+      deliveryMethod: 'DELIVERY',
+      deliveryAddress: 'Jl. Uji No. 1',
+      deliveryFee: 0,
+    });
+    const pickup = await createOrder(staff, [{ variantId: f6, qty: 1 }], {
+      deliveryMethod: 'PICKUP',
+      deliveryAddress: 'diabaikan',
+    });
+    expect(pickup.body).toMatchObject({ deliveryMethod: 'PICKUP', deliveryAddress: null });
+    await createOrder(staff, [{ variantId: f6, qty: 1 }], { deliveryMethod: 'TERBANG' }).then((r) =>
+      expect(r.status).toBe(400),
+    );
+
+    const approve = (body: Record<string, unknown>) =>
+      admin.as(api().post(`/api/v1/orders/${created.body.id}/approve`)).send(body);
+    await approve({}).expect(400); // sudah dibayar wajib pilih metode
+    const approved = await approve({ payLater: true }).expect(200);
+    expect(approved.body).toMatchObject({ status: 'PAID', paymentMethod: null, paidAt: null });
+
+    const paid = await admin
+      .as(api().post(`/api/v1/orders/${created.body.id}/mark-paid`))
+      .send({ paymentMethodId: qrisId })
+      .expect(200);
+    expect(paid.body.paymentMethod).toMatchObject({ id: qrisId });
+    expect(paid.body.paidAt).toBeTruthy();
+  });
 });

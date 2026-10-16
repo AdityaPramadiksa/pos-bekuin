@@ -8,6 +8,8 @@ import { Dialog } from '@/components/ui/dialog';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { ReceiptPreview } from '@/features/printer/ReceiptPreview';
 import { printReceipt } from '@/features/printer/receipt';
+import { canMakeInvoice } from './invoice-image';
+import { InvoiceShare } from './InvoiceShare';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useOrder, useSettings } from '@/lib/queries';
 import { useAuthStore } from '@/stores/auth';
@@ -190,6 +192,12 @@ export function OrderDetailDialog({
                   <span>-{formatRupiah(o.discount)}</span>
                 </li>
               )}
+              {o.deliveryFee > 0 && (
+                <li className="flex justify-between px-3 py-2 text-stone-600">
+                  <span>Ongkir</span>
+                  <span>{formatRupiah(o.deliveryFee)}</span>
+                </li>
+              )}
               <li className="flex justify-between px-3 py-2 font-bold">
                 <span>Total</span>
                 <span>{formatRupiah(o.total)}</span>
@@ -218,6 +226,10 @@ export function OrderDetailDialog({
                   className="max-h-72 rounded-xl border"
                 />
               </a>
+            )}
+
+            {isAdmin && settings.data && canMakeInvoice(o) && (
+              <InvoiceShare order={o} store={settings.data} />
             )}
 
             {isAdmin && settings.data && (

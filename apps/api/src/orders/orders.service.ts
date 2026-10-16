@@ -7,6 +7,7 @@ import {
 import {
   type OrderSource,
   OrderStatus,
+  type DeliveryMethod,
   type OrderType,
   type PaymentType,
   Prisma,
@@ -56,6 +57,11 @@ export interface CreateOrderInput {
   customerFacing?: boolean;
   /** Lewati cek stok (dipakai import pre-order; approve tetap cek). */
   skipStockCheck?: boolean;
+  /** Ongkir (rupiah) yang ditambahkan admin saat membuat order; ikut ke total & nota. */
+  deliveryFee?: number;
+  /** Ambil sendiri / diantar (POS & order admin). Kosong = order lama tanpa info ini. */
+  deliveryMethod?: DeliveryMethod;
+  deliveryAddress?: string | null;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -145,6 +151,9 @@ export class OrdersService {
   // ───────────────────────────── Buat & ubah ─────────────────────────────
 
   async createFromStaff(dto: CreateOrderDto, user: JwtPayload): Promise<OrderView> {
+    if (dto.deliveryFee && user.role !== 'ADMIN') {
+      throw new ForbiddenException('Hanya admin yang bisa menambahkan ongkir');
+    }
     const id = await this.prisma.$transaction((tx) =>
       this.createInTx(tx, {
         ...dto,
@@ -187,7 +196,11 @@ export class OrdersService {
         deliveryDate: dateOnly(deliveryKey),
         batchId: input.batchId,
         subtotal,
-        total: subtotal,
+        deliveryFee: input.deliveryFee ?? 0,
+        deliveryMethod: input.deliveryMethod ?? null,
+        deliveryAddress:
+          input.deliveryMethod === 'DELIVERY' ? (input.deliveryAddress ?? null) : null,
+        total: subtotal + (input.deliveryFee ?? 0),
         createdById: input.createdById,
         items: { create: items.map(toItemCreate) },
         logs: { create: { action: 'CREATED', toStatus: 'PENDING', userId: input.createdById } },
@@ -347,13 +360,17 @@ export class OrdersService {
     const methodId = customerOrder
       ? (current.paymentMethodId ?? dto.paymentMethodId)
       : (dto.paymentMethodId ?? current.paymentMethodId);
-    if (!methodId) throw new BadRequestException('Pilih metode bayar');
-    const method = await tx.paymentMethod.findUnique({ where: { id: methodId } });
-    if (!method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
+    // Bayar nanti (COD / bayar saat ambil): order tetap diproses, uang dicatat saat diterima.
+    const payLater = dto.payLater === true;
+    // Order staff/WA yang dibayar nanti boleh tanpa metode; metode dipilih saat "Sudah dibayar".
+    if (!methodId && !payLater) throw new BadRequestException('Pilih metode bayar');
+    const method = methodId ? await tx.paymentMethod.findUnique({ where: { id: methodId } }) : null;
+    if (methodId && !method?.isActive) throw new BadRequestException('Metode bayar tidak valid');
     // Pelanggan QRIS/Transfer wajib mengirim bukti bayar; tanpa bukti admin harus menyatakan
     // sudah mengecek uangnya masuk (mis. bukti dikirim lewat WhatsApp).
     if (
       isCustomerSource(current.source) &&
+      method &&
       method.type !== 'CASH' &&
       !dto.payLater &&
       !current.paymentProofUrl &&
@@ -363,16 +380,15 @@ export class OrdersService {
         'Pelanggan belum mengunggah bukti bayar. Cek dulu uangnya sudah masuk, lalu approve dengan konfirmasi.',
       );
     }
-    // Bayar nanti (COD / bayar saat ambil): order tetap diproses, uang dicatat saat diterima.
-    const payLater = dto.payLater === true;
-    const payment = payLater
-      ? { paidAmount: null, changeAmount: null, cashSessionId: null }
-      : await this.receivePayment(tx, {
-          total,
-          method,
-          paidAmount: dto.paidAmount,
-          uniqueCode: methodId === current.paymentMethodId ? current.uniqueCode : null,
-        });
+    const payment =
+      payLater || !method
+        ? { paidAmount: null, changeAmount: null, cashSessionId: null }
+        : await this.receivePayment(tx, {
+            total,
+            method,
+            paidAmount: dto.paidAmount,
+            uniqueCode: methodId === current.paymentMethodId ? current.uniqueCode : null,
+          });
 
     // 3. Potong stok pcs produk + kemasan per pack.
     // Pre-order untuk hari lain boleh membuat stok minus: barangnya baru diproduksi sebelum dikirim.
@@ -429,7 +445,7 @@ export class OrdersService {
         discount,
         total,
         hppTotal,
-        paymentMethodId: method.id,
+        paymentMethodId: method?.id ?? null,
         paidAmount: payment.paidAmount,
         changeAmount: payment.changeAmount,
         paymentRef: dto.paymentRef ?? null,
@@ -441,7 +457,7 @@ export class OrdersService {
     });
     // Tandai notifikasi DANA "uang masuk" yang nominalnya sama sebagai sudah dipakai order ini,
     // supaya satu pembayaran asli tidak bisa dipakai sebagai bukti untuk order lain.
-    if (method.type === 'QRIS' && !payLater) {
+    if (method?.type === 'QRIS' && !payLater) {
       await this.claimPaymentNotification(tx, id, payment.paidAmount ?? total, current.createdAt);
     }
     await tx.orderLog.create({
@@ -451,7 +467,9 @@ export class OrdersService {
         fromStatus: 'PENDING',
         toStatus: 'PAID',
         userId,
-        reason: payLater ? `${method.name} · belum dibayar` : method.name,
+        reason: payLater
+          ? [method?.name, 'belum dibayar'].filter(Boolean).join(' · ')
+          : method?.name,
       },
     });
   }

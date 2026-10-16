@@ -5,6 +5,7 @@ import {
   formatRupiah,
   normalizeName,
   quickCashAmounts,
+  whatsappNumber,
 } from './format';
 
 describe('format', () => {
@@ -29,5 +30,14 @@ describe('quickCashAmounts', () => {
     expect(quickCashAmounts(104000)).toEqual([104000, 110000, 120000, 150000]);
     expect(quickCashAmounts(22000)).toEqual([22000, 30000, 40000, 50000]);
     expect(quickCashAmounts(50000)).toEqual([50000, 60000, 100000]);
+  });
+
+  it('mengubah nomor WA lokal ke format wa.me', () => {
+    expect(whatsappNumber('0812-3456-7890')).toBe('6281234567890');
+    expect(whatsappNumber('+62 812 3456 7890')).toBe('6281234567890');
+    expect(whatsappNumber('81234567890')).toBe('6281234567890');
+    expect(whatsappNumber('')).toBeNull();
+    expect(whatsappNumber(null)).toBeNull();
+    expect(whatsappNumber('0812')).toBeNull();
   });
 });

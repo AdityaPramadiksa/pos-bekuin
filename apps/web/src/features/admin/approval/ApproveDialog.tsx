@@ -20,6 +20,9 @@ import { ErrorState, LoadingState } from '@/components/ui/states';
 import { DeliveryInfo } from '@/features/orders/DeliveryInfo';
 import { SourceBadge } from '@/features/orders/order-ui';
 import { categoryLabel, formatDateTime } from '@/features/orders/order-format';
+import { QtyInput } from '@/components/ui/qty-input';
+import { InvoiceShare } from '@/features/orders/InvoiceShare';
+import { MAX_QTY_PER_ITEM } from '@/stores/cart';
 import { isPrinterConnected, printReceipt } from '@/features/printer/receipt';
 import { api, assetUrl, errorMessage } from '@/lib/api';
 import { useCurrentShift, useOrder, usePaymentMethods, useSettings } from '@/lib/queries';
@@ -140,8 +143,10 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
   const needsProof =
     isCustomerOrder && !!method && method.type !== 'CASH' && !payLater && !order.paymentProofUrl;
   const [confirmNoProof, setConfirmNoProof] = useState(false);
+  // Order staff/WA yang dibayar nanti: metode dipilih saat uangnya diterima (Sudah dibayar).
+  const methodLater = payLater && !isCustomerOrder;
   const invalid =
-    !method ||
+    (!method && !methodLater) ||
     itemCount === 0 ||
     discount > subtotal ||
     noShift ||
@@ -163,7 +168,7 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
         .map((i) => ({ id: i.id, qty: qty[i.id] ?? 0 }));
       return (
         await api.post<OrderView>(`/orders/${order.id}/approve`, {
-          paymentMethodId: selectedMethodId,
+          paymentMethodId: methodLater ? undefined : selectedMethodId,
           paidAmount: isCash && !payLater ? paid : undefined,
           payLater: payLater || undefined,
           confirmWithoutProof: needsProof ? true : undefined,
@@ -226,6 +231,11 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           <div className="rounded-2xl bg-green-50 p-4">
             <p className="text-sm text-green-800">Kembalian</p>
             <p className="text-3xl font-bold text-green-800">{formatRupiah(done.changeAmount)}</p>
+          </div>
+        )}
+        {settings.data && (
+          <div className="text-left">
+            <InvoiceShare order={done} store={settings.data} />
           </div>
         )}
         <div className="flex gap-2">
@@ -332,10 +342,16 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
                   >
                     <Minus className="size-4" />
                   </button>
-                  <span className="w-6 text-center text-sm font-semibold">{q}</span>
+                  <QtyInput
+                    value={q}
+                    max={MAX_QTY_PER_ITEM}
+                    label={`${i.productName} ${i.packSize} pcs`}
+                    onChange={(n) => setQty({ ...qty, [i.id]: n })}
+                    onClamp={(max) => toast.warning(`Maksimal ${max} pack per item`)}
+                  />
                   <button
                     aria-label="Tambah"
-                    onClick={() => setQty({ ...qty, [i.id]: q + 1 })}
+                    onClick={() => setQty({ ...qty, [i.id]: Math.min(MAX_QTY_PER_ITEM, q + 1) })}
                     className="flex size-8 items-center justify-center rounded-lg border border-stone-300"
                   >
                     <Plus className="size-4" />
@@ -450,53 +466,62 @@ function ApproveForm({ order, onClose }: { order: OrderView; onClose: () => void
           </p>
         </div>
       ) : (
-        <div>
-          <p className="mb-2 text-sm font-medium">Metode bayar</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(methods.data ?? []).map((m: PaymentMethodView) => (
-              <button
-                key={m.id}
-                onClick={() => {
-                  setMethodId(m.id);
-                  setPaid('');
-                }}
-                className={cn(
-                  'rounded-xl border px-2 py-3 text-sm font-semibold',
-                  selectedMethodId === m.id
-                    ? 'border-brand-700 bg-brand-50 text-brand-700'
-                    : 'border-stone-300 bg-white',
-                )}
-              >
-                {m.name}
-              </button>
-            ))}
+        <>
+          {/* Order staff/WA: pilih dulu uangnya sudah diterima atau dibayar nanti (COD). */}
+          <div>
+            <p className="mb-2 text-sm font-medium">Pembayaran</p>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 text-sm">
+              {[
+                { later: false, label: 'Sudah dibayar' },
+                { later: true, label: 'Bayar nanti (COD)' },
+              ].map((o) => (
+                <button
+                  key={o.label}
+                  onClick={() => {
+                    setPayLater(o.later);
+                    setPaid('');
+                  }}
+                  className={cn(
+                    'rounded-lg px-2 py-2 font-medium',
+                    payLater === o.later ? 'bg-white shadow-sm' : 'text-stone-600',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
-      {/* Order staff/WA: kapan uang diterima, sekarang atau nanti (COD / ditagih). */}
-      {method && !isCustomerOrder && (
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-stone-100 p-1 text-sm">
-          {[
-            { later: false, label: 'Sudah dibayar' },
-            { later: true, label: 'Bayar nanti (COD)' },
-          ].map((o) => (
-            <button
-              key={o.label}
-              onClick={() => setPayLater(o.later)}
-              className={cn(
-                'rounded-lg px-2 py-2 font-medium',
-                payLater === o.later ? 'bg-white shadow-sm' : 'text-stone-600',
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+          {!payLater && (
+            <div>
+              <p className="mb-2 text-sm font-medium">Metode bayar</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(methods.data ?? []).map((m: PaymentMethodView) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setMethodId(m.id);
+                      setPaid('');
+                    }}
+                    className={cn(
+                      'rounded-xl border px-2 py-3 text-sm font-semibold',
+                      selectedMethodId === m.id
+                        ? 'border-brand-700 bg-brand-50 text-brand-700'
+                        : 'border-stone-300 bg-white',
+                    )}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
       {payLater && (
         <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
           Order langsung <b>diproses</b> dengan status <b>belum dibayar</b>. Tekan{' '}
-          <b>Sudah dibayar</b> di halaman Diproses saat uangnya diterima.
+          <b>Sudah dibayar</b> di halaman Diproses saat uangnya diterima
+          {methodLater ? ', sekaligus pilih metode bayarnya (Cash/Transfer/QRIS)' : ''}.
         </p>
       )}
       {expectedQris !== null && !payLater && (

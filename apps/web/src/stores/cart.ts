@@ -1,6 +1,11 @@
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+/** Jumlah pack maksimal per item, sama dengan batas server (order-pricing.ts). */
+export const MAX_QTY_PER_ITEM = 200;
+/** Batas untuk pesanan pelanggan (link online / QR), sama dengan DTO publik. */
+export const CUSTOMER_MAX_QTY_PER_ITEM = 50;
+
 export interface CartLine {
   variantId: string;
   productId: string;
@@ -20,6 +25,11 @@ export interface CartMeta {
   type: 'TAKEAWAY' | 'DINE_IN';
   tableId: string;
   deliveryDate: string; // '' = hari ini
+  /** Ongkir tambahan (rupiah), hanya diisi admin. Keranjang lama bisa belum punya kolom ini. */
+  deliveryFee?: number;
+  /** Ambil sendiri ke lokasi / diantar. Keranjang lama belum punya → dianggap ambil sendiri. */
+  deliveryMethod?: 'PICKUP' | 'DELIVERY';
+  deliveryAddress?: string;
 }
 
 interface CartState {
@@ -38,6 +48,9 @@ const EMPTY_META: CartMeta = {
   type: 'TAKEAWAY',
   tableId: '',
   deliveryDate: '',
+  deliveryFee: 0,
+  deliveryMethod: 'PICKUP',
+  deliveryAddress: '',
 };
 
 const stores = new Map<string, UseBoundStore<StoreApi<CartState>>>();
@@ -91,3 +104,7 @@ export const cartPcsByProduct = (lines: CartLine[]) => {
   for (const l of lines) map.set(l.productId, (map.get(l.productId) ?? 0) + l.qty * l.packSize);
   return map;
 };
+
+/** Ongkir yang ikut ditagih: hanya admin dan hanya untuk pesanan diantar. */
+export const cartDeliveryFee = (meta: CartMeta, isAdmin: boolean) =>
+  isAdmin && meta.deliveryMethod === 'DELIVERY' ? (meta.deliveryFee ?? 0) : 0;

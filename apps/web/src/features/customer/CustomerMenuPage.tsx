@@ -12,11 +12,12 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Textarea } from '@/components/ui/input';
+import { QtyInput } from '@/components/ui/qty-input';
 import { ErrorState, LoadingState } from '@/components/ui/states';
 import { assetUrl, errorMessage, publicApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { dateKeyWita, formatDateKey } from '@/features/orders/order-format';
-import { cartTotals, getCartStore } from '@/stores/cart';
+import { cartTotals, CUSTOMER_MAX_QTY_PER_ITEM, getCartStore } from '@/stores/cart';
 import { loadMyOrders, saveMyOrder } from './my-orders';
 import { sortCustomerMethods } from './payment-methods';
 import { OnlineFields, type OnlineDelivery } from './OnlineFields';
@@ -500,10 +501,18 @@ function Stepper({
       >
         <Minus className="size-4" />
       </button>
-      <span className="w-6 text-center font-semibold tabular-nums">{qty}</span>
+      <QtyInput
+        value={qty}
+        max={CUSTOMER_MAX_QTY_PER_ITEM}
+        label={label}
+        onChange={onChange}
+        onClamp={(max) =>
+          toast.warning(`Maksimal ${max} pack per menu. Untuk pesanan lebih banyak, hubungi toko.`)
+        }
+      />
       <button
         aria-label={`Tambah ${label}`}
-        onClick={() => onChange(Math.min(50, qty + 1))}
+        onClick={() => onChange(Math.min(CUSTOMER_MAX_QTY_PER_ITEM, qty + 1))}
         className="bg-brand-700 flex size-8 items-center justify-center rounded-full text-white"
       >
         <Plus className="size-4" />
